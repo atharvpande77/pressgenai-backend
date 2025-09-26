@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     POSTGRES_CNX_STR: str
     POSTGRES_CNX_STR_LOCAL: str
-    ENVIRONMENT: str
+    # ENVIRONMENT: str
     SERP_API_KEY: str
     EXHAUSTED_SERP_API_KEY1: str
     EXHAUSTED_SERP_API_KEY2: str
