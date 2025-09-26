@@ -1,0 +1,4 @@
+.venv/
+.vercel
+frontend
+.env

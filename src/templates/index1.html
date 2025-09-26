@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 400;
+            margin-bottom: 0.25rem;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+        }
+
+        .source-section {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            height: fit-content;
+        }
+
+        .source-header {
+            background: #f1f5f9;
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .source-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .source-category {
+            display: inline-block;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+
+        .category-general { background: #667eea; }
+        .category-regional { background: #f093fb; }
+        .category-business { background: #4facfe; }
+        .category-sports { background: #43e97b; }
+        .category-technology { background: #fa709a; }
+        .category-politics { background: #ffeaa7; color: #2d3436; }
+
+        .news-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1.5rem;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .news-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            display: flex;
+            min-height: 120px;
+        }
+
+        .news-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #667eea;
+            background: white;
+        }
+
+        .news-image {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            background: linear-gradient(45deg, #f1f5f9, #e2e8f0);
+            flex-shrink: 0;
+        }
+
+        .news-content {
+            padding: 1rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .news-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .news-meta {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .news-time {
+            background: #f1f5f9;
+            padding: 0.2rem 0.6rem;
+            border-radius: 15px;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .header p {
+                font-size: 0.8rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .sources-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .source-section {
+                height: 400px;
+            }
+            
+            .source-header {
+                padding: 0.75rem 1rem;
+            }
+
+            .news-grid {
+                padding: 0.75rem;
+            }
+
+            .news-card {
+                min-height: 90px;
+            }
+
+            .news-image {
+                width: 70px;
+                height: 90px;
+            }
+
+            .news-content {
+                padding: 0.6rem;
+            }
+
+            .news-title {
+                font-size: 0.75rem;
+            }
+
+            .news-meta {
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>News Dashboard</h1>
+        <p>Latest stories from multiple sources</p>
+    </div>
+
+    <div class="container">
+        <div class="sources-grid" id="newsContainer">
+            <!-- News sources will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        // Sample data structure (replace this with your API call)
+        const sampleNewsData = [
+            {
+                feed: [
+                    {
+                        title: "Week-Long Neglect Of Collapsed Sewer Turns Indora Into Stinking Mess",
+                        summary: '<a href="https://timesofindia.indiatimes.com/city/nagpur/week-long-neglect-of-collapsed-sewer-turns-indora-into-stinking-mess/articleshow/123195445.cms"><img align="left" border="0" hspace="10" src="https://timesofindia.indiatimes.com/photo/123195445.cms" style="margin-top: 3px; margin-right: 5px;" /></a>',
+                        link: "https://timesofindia.indiatimes.com/city/nagpur/week-long-neglect-of-collapsed-sewer-turns-indora-into-stinking-mess/articleshow/123195445.cms",
+                        published: "2025-08-09T05:36:05+05:30"
+                    },
+                    {
+                        title: "Too many cooks spoil the broth?",
+                        summary: '<a href="https://timesofindia.indiatimes.com/city/nagpur/too-many-cooks-spoil-the-broth/articleshow/123195287.cms"><img align="left" border="0" hspace="10" src="https://timesofindia.indiatimes.com/photo/123195287.cms" style="margin-top: 3px; margin-right: 5px;" /></a>',
+                        link: "https://timesofindia.indiatimes.com/city/nagpur/too-many-cooks-spoil-the-broth/articleshow/123195287.cms",
+                        published: "2025-08-09T04:49:01+05:30"
+                    },
+                    {
+                        title: "Registered post to be sent by air like speed post; POD system to continue",
+                        summary: '<a href="https://timesofindia.indiatimes.com/city/nagpur/registered-post-to-be-sent-by-air-like-speed-post-pod-system-to-continue/articleshow/123195415.cms"><img align="left" border="0" hspace="10" src="https://timesofindia.indiatimes.com/photo/123195415.cms" style="margin-top: 3px; margin-right: 5px;" /></a>',
+                        link: "https://timesofindia.indiatimes.com/city/nagpur/registered-post-to-be-sent-by-air-like-speed-post-pod-system-to-continue/articleshow/123195415.cms",
+                        published: "2025-08-09T04:09:31+05:30"
+                    }
+                ],
+                source: "Times of India - Nagpur",
+                category: "general"
+            },
+            {
+                feed: [
+                    {
+                        title: "Maharashtra Assembly Budget Session Begins Today",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T06:15:00+05:30"
+                    },
+                    {
+                        title: "New Metro Line Construction Update for Nagpur",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T05:45:00+05:30"
+                    },
+                    {
+                        title: "Healthcare Facilities Expansion in Rural Areas",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T04:30:00+05:30"
+                    }
+                ],
+                source: "Maharashtra Times",
+                category: "regional"
+            },
+            {
+                feed: [
+                    {
+                        title: "India's GDP Growth Shows Strong Recovery in Q2",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T07:00:00+05:30"
+                    },
+                    {
+                        title: "Tech Startups Receive Record Funding This Month",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T06:30:00+05:30"
+                    },
+                    {
+                        title: "New Environmental Policies Impact Industrial Growth",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T05:15:00+05:30"
+                    }
+                ],
+                source: "Business Standard",
+                category: "business"
+            },
+            {
+                feed: [
+                    {
+                        title: "Cricket World Cup Preparations Underway",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T08:00:00+05:30"
+                    },
+                    {
+                        title: "Football League Season Kicks Off Next Week",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T07:30:00+05:30"
+                    },
+                    {
+                        title: "Tennis Championship Finals This Weekend",
+                        summary: '<a href="#"><img src="https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=150" /></a>',
+                        link: "#",
+                        published: "2025-08-09T06:45:00+05:30"
+                    }
+                ],
+                source: "Sports Today",
+                category: "sports"
+            }
+        ];
+
+        function extractImageFromSummary(summary) {
+            const imgMatch = summary.match(/src="([^"]+)"/);
+            return imgMatch ? imgMatch[1] : null;
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor(diffMs / (1000 * 60));
+
+            if (diffHours > 24) {
+                return date.toLocaleDateString();
+            } else if (diffHours > 0) {
+                return `${diffHours}h ago`;
+            } else {
+                return `${diffMins}m ago`;
+            }
+        }
+
+        function renderNewsSource(sourceData) {
+            return `
+                <div class="source-section">
+                    <div class="source-header">
+                        <h2 class="source-title">${sourceData.source}</h2>
+                        <span class="source-category category-${sourceData.category}">${sourceData.category}</span>
+                    </div>
+                    <div class="news-grid">
+                        ${sourceData.feed.map(article => {
+                            const imageUrl = extractImageFromSummary(article.summary);
+                            return `
+                                <div class="news-card" onclick="window.open('${article.link}', '_blank')">
+                                    <div class="news-content">
+                                        <h3 class="news-title">${article.title}</h3>
+                                        <div class="news-meta">
+                                            <span class="news-time">${formatTime(article.published)}</span>
+                                        </div>
+                                    </div>
+                                    ${imageUrl ? `<img src="${imageUrl}" alt="${article.title}" class="news-image" onerror="this.style.display='none'">` : '<div class="news-image"></div>'}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDashboard(newsData) {
+            const container = document.getElementById('newsContainer');
+            container.innerHTML = newsData.map(renderNewsSource).join('');
+        }
+
+        function showLoader() {
+            const container = document.getElementById('newsContainer');
+            container.innerHTML = `
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Loading news stories...</p>
+                </div>
+            `;
+        }
+
+        // Function to load data from your API
+        async function loadNewsData() {
+            showLoader();
+            try {
+                // Replace this URL with your actual API endpoint
+                const response = await fetch('/feed');
+                const newsData = await response.json();
+                
+                // For now, using sample data
+                // const newsData = sampleNewsData;
+                renderDashboard(newsData);
+            } catch (error) {
+                console.error('Error loading news data:', error);
+                // Fallback to sample data
+                renderDashboard(sampleNewsData);
+            }
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadNewsData);
+
+        // Optional: Refresh data every 5 minutes
+        setInterval(loadNewsData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

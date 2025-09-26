@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>News Dashboard</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .news-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .news-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .tab-active {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        .location-dropdown {
+            max-height: 200px;
+            overflow-y auto;
+        }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .tab-button {
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-button:hover {
+            color: #3b82f6;
+            border-bottom-color: #dbeafe;
+        }
+        </style>
+    </head>
+    <body class="bg-gray-50 min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">NewsHub</h1>
+                    <div class="text-sm text-gray-500" id="lastUpdated"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Location Selection -->
+        <div id="locationSelection" class="max-w-2xl mx-auto px-4 py-12">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Get Local
+                    News</h2>
+                <p class="text-gray-600">Select your location to get
+                    personalized news from your city, state, country and around
+                    the world</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <!-- Search Bar -->
+                <div class="relative mb-4">
+                    <input
+                        type="text"
+                        id="locationSearch"
+                        placeholder="Search for your city..."
+                        class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                    <div class="absolute right-3 top-3">
+                        <svg class="w-6 h-6 text-gray-400" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+
+                    <!-- Dropdown Results -->
+                    <div id="locationDropdown"
+                        class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden location-dropdown">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Or Divider -->
+                <div class="flex items-center my-6">
+                    <hr class="flex-1 border-gray-300">
+                    <span class="px-4 text-gray-500 text-sm">OR</span>
+                    <hr class="flex-1 border-gray-300">
+                </div>
+
+                <!-- Geolocation Button -->
+                <button
+                    id="useGeolocation"
+                    class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>Use My Current Location</span>
+                </button>
+
+                <!-- Loading State -->
+                <div id="locationLoading" class="hidden text-center py-4">
+                    <div class="spinner mx-auto mb-2"></div>
+                    <p class="text-gray-600">Detecting your location...</p>
+                </div>
+
+                <!-- Error Message -->
+                <div id="locationError"
+                    class="hidden mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm"></div>
+            </div>
+        </div>
+
+        <!-- News Dashboard -->
+        <div id="newsDashboard" class="hidden">
+            <!-- Location Info -->
+            <div class="bg-white shadow-sm border-b">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <h2 class="text-lg font-semibold text-gray-900"
+                                id="currentLocation"></h2>
+                            <button id="changeLocation"
+                                class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                Change Location
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="flex space-x-8 overflow-x-auto pb-2 -mb-px"
+                        aria-label="News categories">
+                        <button
+                            class="tab-button py-2 px-4 rounded-t-lg font-medium transition-all duration-200 tab-active whitespace-nowrap"
+                            data-tab="city" aria-selected="true" role="tab">
+                            <span class="tab-label" id="cityTabLabel">City</span>
+                            <span
+                                class="tab-count ml-2 text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full"></span>
+                        </button>
+                        <button
+                            class="tab-button py-2 px-4 rounded-t-lg font-medium transition-all duration-200 whitespace-nowrap"
+                            data-tab="state" aria-selected="false" role="tab">
+                            <span class="tab-label" id="stateTabLabel">State</span>
+                            <span
+                                class="tab-count ml-2 text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full"></span>
+                        </button>
+                        <button
+                            class="tab-button py-2 px-4 rounded-t-lg font-medium transition-all duration-200 whitespace-nowrap"
+                            data-tab="country" aria-selected="false" role="tab">
+                            <span class="tab-label" id="countryTabLabel">Country</span>
+                            <span
+                                class="tab-count ml-2 text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full"></span>
+                        </button>
+                        <button
+                            class="tab-button py-2 px-4 rounded-t-lg font-medium transition-all duration-200 whitespace-nowrap"
+                            data-tab="international" aria-selected="false"
+                            role="tab">
+                            <span class="tab-label">International</span>
+                            <span
+                                class="tab-count ml-2 text-xs bg-white bg-opacity-20 px-2 py-1 rounded-full"></span>
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- News Loading -->
+                <div id="newsLoading" class="hidden text-center py-12">
+                    <div class="spinner mx-auto mb-4"></div>
+                    <p class="text-gray-600 text-lg">Loading news...</p>
+                </div>
+
+                <!-- News Error -->
+                <div id="newsError"
+                    class="hidden p-4 bg-red-50 text-red-700 rounded-lg mb-6 text-center">
+                    <p>Failed to load news. Please try again later.</p>
+                    <button id="retryLoading"
+                        class="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                        Try Again
+                    </button>
+                </div>
+
+                <!-- News Content -->
+                <div id="newsContent" role="tabpanel"
+                    aria-labelledby="tab-city">
+                    <!-- News articles will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <script>
+    // Global state
+    let currentLocationData = null;
+    let currentTab = 'city';
+    let newsData = {}; // Cache for loaded news data
+
+    // DOM elements
+    const locationSelection = document.getElementById('locationSelection');
+    const newsDashboard = document.getElementById('newsDashboard');
+    const locationSearch = document.getElementById('locationSearch');
+    const locationDropdown = document.getElementById('locationDropdown');
+    const useGeolocationBtn = document.getElementById('useGeolocation');
+    const locationLoading = document.getElementById('locationLoading');
+    const locationError = document.getElementById('locationError');
+    const newsLoading = document.getElementById('newsLoading');
+    const newsError = document.getElementById('newsError');
+    const newsContent = document.getElementById('newsContent');
+    const currentLocationEl = document.getElementById('currentLocation');
+    const changeLocationBtn = document.getElementById('changeLocation');
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const retryLoadingBtn = document.getElementById('retryLoading');
+    const cityTabLabel = document.getElementById('cityTabLabel');
+    const stateTabLabel = document.getElementById('stateTabLabel');
+    const countryTabLabel = document.getElementById('countryTabLabel');
+
+    // Initialize the application
+    function initApp() {
+        // Check if there's a previously saved location
+        const savedLocation = localStorage.getItem('newsHubLocation');
+        if (savedLocation) {
+            try {
+                const locationData = JSON.parse(savedLocation);
+                selectLocation(locationData);
+            } catch (e) {
+                console.error('Error parsing saved location:', e);
+                localStorage.removeItem('newsHubLocation');
+            }
+        }
+    }
+
+    // Location search functionality
+    let searchTimeout;
+    locationSearch.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 3) {
+            locationDropdown.classList.add('hidden');
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            searchLocations(query);
+        }, 300);
+    });
+
+    // Allow keyboard navigation in dropdown
+    locationSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' && !locationDropdown.classList.contains('hidden')) {
+            e.preventDefault();
+            const firstItem = locationDropdown.querySelector('div');
+            if (firstItem) firstItem.focus();
+        }
+    });
+
+    // Search locations using mock data (replace with real geocoding API)
+    async function searchLocations(query) {
+        try {
+            // Make API request to Geocode Earth
+            const response = await fetch(`https://api.geocode.earth/v1/search?text=${encodeURIComponent(query)}&size=3&api_key=ge-fe2bbad426fadab4`);
+            const data = await response.json();
+            
+            // Check if we got a successful response
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            // Process the API response to extract the needed information
+            const results = data.features.map(feature => {
+                const props = feature.properties;
+                // console.log(props);
+                
+                // Extract city, state, country, and country code
+                // Note: The API structure varies, so we need to handle different cases
+                const city = props.locality || props.name || '';
+                const state = props.region || '';
+                const country = props.country || '';
+                const countryCode = props.country_code || '';
+                const formatted = props.label || `${city}, ${state}, ${country}`;
+                
+                return {
+                    city,
+                    state,
+                    country_name: country,
+                    country: countryCode,
+                    formatted: formatted.trim().replace(/,\s*,/, ',') // Clean up any double commas
+                };
+            }).filter(item => item.city && item.country_name); // Filter out incomplete results
+            
+            displayLocationResults(results);
+        } catch (error) {
+            console.error('Error searching locations:', error);
+            
+            // Fallback to mock data if API fails
+            const mockResults = [
+                { city: 'Mumbai', state: 'Maharashtra', country: 'India', country_code: 'IN', formatted: 'Mumbai, Maharashtra, India' },
+                { city: 'Delhi', state: 'Delhi', country: 'India', country_code: 'IN', formatted: 'Delhi, Delhi, India' },
+                { city: 'Nagpur', state: 'Maharashtra', country: 'India', country_code: 'IN', formatted: 'Nagpur, Maharashtra, India' },
+                { city: 'Pune', state: 'Maharashtra', country: 'India', country_code: 'IN', formatted: 'Pune, Maharashtra, India' },
+                { city: 'Bangalore', state: 'Karnataka', country: 'India', country_code: 'IN', formatted: 'Bangalore, Karnataka, India' },
+                { city: 'New York', state: 'New York', country: 'United States', country_code: 'US', formatted: 'New York, New York, United States' },
+                { city: 'London', state: 'England', country: 'United Kingdom', country_code: 'GB', formatted: 'London, England, United Kingdom' }
+            ].filter(item => item.formatted.toLowerCase().includes(query.toLowerCase()));
+            
+            displayLocationResults(mockResults);
+        }
+    }
+
+    function displayLocationResults(results) {
+        if (results.length === 0) {
+            locationDropdown.innerHTML = `
+                <div class="px-4 py-3 text-gray-500 text-center">
+                    No locations found. Try a different search term.
+                </div>
+            `;
+            locationDropdown.classList.remove('hidden');
+            return;
+        }
+
+        locationDropdown.innerHTML = results.map((result, index) => `
+            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 focus:bg-gray-50 outline-none" 
+                 tabindex="0"
+                 onclick='selectLocation(${JSON.stringify(result)})'
+                 onkeydown="if (event.key === 'Enter' || event.key === ' ') { selectLocation(${JSON.stringify(result)}); event.preventDefault(); }"
+                 ${index === 0 ? 'autofocus' : ''}>
+                <div class="font-medium text-gray-900">${result.city}</div>
+                <div class="text-sm text-gray-600">${result.state}, ${result.country_name}</div>
+            </div>
+        `).join('');
+
+        locationDropdown.classList.remove('hidden');
+    }
+
+    // Geolocation functionality
+    useGeolocationBtn.addEventListener('click', () => {
+        locationError.classList.add('hidden');
+        locationLoading.classList.remove('hidden');
+        useGeolocationBtn.disabled = true;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        // In a real app, you would reverse geocode the coordinates
+                        // For demo purposes, we'll use a mock API call
+                        const { latitude, longitude } = position.coords;
+                        console.log(`Got location: ${latitude}, ${longitude}`);
+                        
+                        // Simulate API call delay
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
+                        // Mock reverse geocoding result
+                        const mockLocation = {
+                            city: 'Nagpur',
+                            state: 'Maharashtra',
+                            country: 'IN',
+                            country_name: 'India'
+                        };
+                        
+                        selectLocation(mockLocation);
+                    } catch (error) {
+                        console.error('Error getting location:', error);
+                        showLocationError('Failed to determine your location. Please try searching instead.');
+                    } finally {
+                        locationLoading.classList.add('hidden');
+                        useGeolocationBtn.disabled = false;
+                    }
+                },
+                (error) => {
+                    locationLoading.classList.add('hidden');
+                    useGeolocationBtn.disabled = false;
+                    
+                    let errorMsg = 'Unable to access your location. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg += 'Please allow location access or search for a location.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg += 'Location information is unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg += 'Location request timed out.';
+                            break;
+                        default:
+                            errorMsg += 'An unknown error occurred.';
+                    }
+                    
+                    showLocationError(errorMsg);
+                },
+                { timeout: 10000 }
+            );
+        } else {
+            locationLoading.classList.add('hidden');
+            useGeolocationBtn.disabled = false;
+            showLocationError('Geolocation is not supported by your browser. Please search for a location.');
+        }
+    });
+
+    function showLocationError(message) {
+        locationError.textContent = message;
+        locationError.classList.remove('hidden');
+    }
+
+    // Select location and load city news by default
+    async function selectLocation(locationData) {
+        currentLocationData = locationData;
+        locationDropdown.classList.add('hidden');
+        locationError.classList.add('hidden');
+        locationLoading.classList.add('hidden');
+        
+        // Save location to localStorage
+        localStorage.setItem('newsHubLocation', JSON.stringify(locationData));
+        
+        // Switch to dashboard
+        locationSelection.classList.add('hidden');
+        newsDashboard.classList.remove('hidden');
+        
+        // Update location display
+        currentLocationEl.textContent = `${locationData.city}, ${locationData.state}`;
+        
+        // Update tab labels with actual location names
+        updateTabLabels(locationData);
+        
+        // Clear previous data and load city news by default
+        newsData = {};
+        currentTab = 'city';
+        
+        // Set city tab as active
+        updateActiveTab('city');
+        
+        // Load city news
+        await loadNewsForTab('city');
+    }
+
+    // Update tab labels with actual location names
+    function updateTabLabels(locationData) {
+        if (cityTabLabel) {
+            cityTabLabel.textContent = locationData.city;
+        }
+        if (stateTabLabel) {
+            stateTabLabel.textContent = locationData.state;
+        }
+        if (countryTabLabel) {
+            countryTabLabel.textContent = locationData.country_name;
+        }
+    }
+
+    // API call to fetch news
+    async function fetchNewsFromApi(scope) {
+        if (!currentLocationData) return [];
+
+        // Convert scope to uppercase as required by the API
+        const apiScope = scope.toUpperCase();
+        
+        // Prepare request body according to the new schema
+        const requestBody = {
+            scope: apiScope,
+            query: '',
+            country_code: null,
+            location: null
+        };
+
+        switch (apiScope) {
+            case 'CITY':
+                requestBody.query = currentLocationData.city.toUpperCase();
+                requestBody.country_code = currentLocationData.country;
+                requestBody.location = {
+                    city: currentLocationData.city.toUpperCase(),
+                    state: currentLocationData.state.toUpperCase(),
+                    country: currentLocationData.country_name.toUpperCase()
+                };
+                break;
+            case 'STATE':
+                requestBody.query = currentLocationData.state.toUpperCase();
+                requestBody.country_code = currentLocationData.country;
+                requestBody.location = {
+                    city: null,
+                    state: currentLocationData.state.toUpperCase(),
+                    country: currentLocationData.country_name.toUpperCase()
+                };
+                break;
+            case 'COUNTRY':
+                requestBody.query = currentLocationData.country_name.toUpperCase();
+                requestBody.country_code = currentLocationData.country;
+                requestBody.location = {
+                    city: null,
+                    state: null,
+                    country: currentLocationData.country_name.toUpperCase()
+                };
+                break;
+            case 'INTERNATIONAL':
+                requestBody.query = 'world';
+                requestBody.country_code = null;
+                requestBody.location = null;
+                break;
+            default:
+                requestBody.query = '';
+        }
+
+        try {
+            console.log('Fetching news with request:', requestBody);
+            
+            const response = await fetch('/api/stories', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`Received ${data.stories.length} articles for ${scope}`);
+                return data.stories; // Return the stories array from the response
+            } else {
+                console.error(`API request failed with status: ${response.status}`);
+                throw new Error(`API returned ${response.status}`);
+            }
+        } catch (error) {
+            console.error(`Error fetching news for ${scope}:`, error);
+            throw error;
+        }
+    }
+
+    // Format date to relative time
+    function formatDate(dateString) {
+        if (!dateString) return 'Recently';
+        
+        try {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) return 'Just now';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+            if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+            
+            return date.toLocaleDateString();
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return 'Recently';
+        }
+    }
+
+    // Load news for a specific tab
+    async function loadNewsForTab(tab) {
+        // Show loading state, hide error
+        newsLoading.classList.remove('hidden');
+        newsError.classList.add('hidden');
+        newsContent.innerHTML = '';
+
+        try {
+            // Fetch news data
+            const articles = await fetchNewsFromApi(tab);
+            
+            // Cache the data
+            newsData[tab] = articles;
+            
+            // Update tab count
+            updateTabCount(tab);
+            
+            // Display the news
+            displayNews(articles);
+            
+            // Update last updated time
+            document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+            
+        } catch (error) {
+            console.error(`Error loading news for ${tab}:`, error);
+            newsError.classList.remove('hidden');
+            // Display mock data as fallback
+            displayNews(generateMockNews(tab));
+        } finally {
+            newsLoading.classList.add('hidden');
+        }
+    }
+
+    // Generate mock news data for demo/fallback
+    function generateMockNews(level) {
+        // Use actual location names instead of generic "city", "state", "country"
+        let locationName = '';
+        switch(level) {
+            case 'city':
+                locationName = currentLocationData ? currentLocationData.city : 'Local';
+                break;
+            case 'state':
+                locationName = currentLocationData ? currentLocationData.state : 'Regional';
+                break;
+            case 'country':
+                locationName = currentLocationData ? currentLocationData.country_name : 'National';
+                break;
+            default:
+                locationName = level.charAt(0).toUpperCase() + level.slice(1);
+        }
+        
+        const mockArticles = [
+            {
+                title: `${locationName} News: Major development in local infrastructure`,
+                link: "https://example.com/news1",
+                snippet: "A significant project was announced today that promises to improve transportation and create jobs in the region.",
+                source: "Local News Network",
+                date: "2025-08-29T02:57:38",
+                thumbnail: "https://via.placeholder.com/300x200/3b82f6/ffffff?text=News"
+            },
+            {
+                title: `Breaking: Important ${locationName} announcement affects thousands`,
+                link: "https://example.com/news2",
+                snippet: "Officials released new guidelines that will impact residents starting next month. Here's what you need to know.",
+                source: "News Today",
+                date: "2025-08-28T23:57:38"
+            },
+            {
+                title: `${locationName} economy shows positive growth`,
+                link: "https://example.com/news3",
+                snippet: "Recent economic data indicates a strong recovery, with experts predicting continued growth through the next quarter.",
+                source: "Economic Times",
+                date: "2025-08-28T19:57:38",
+                thumbnail: "https://via.placeholder.com/300x200/10b981/ffffff?text=Economy"
+            }
+        ];
+        return mockArticles;
+    }
+
+    // Update tab count badge
+    function updateTabCount(tab) {
+        const button = document.querySelector(`[data-tab="${tab}"]`);
+        if (button) {
+            const count = newsData[tab]?.length || 0;
+            const countEl = button.querySelector('.tab-count');
+            countEl.textContent = count;
+        }
+    }
+
+    // Update active tab styling
+    function updateActiveTab(tab) {
+        tabButtons.forEach(btn => {
+            const isActive = btn.dataset.tab === tab;
+            btn.classList.toggle('tab-active', isActive);
+            btn.setAttribute('aria-selected', isActive);
+        });
+        
+        // Update the aria-labelledby attribute for the news content
+        newsContent.setAttribute('aria-labelledby', `tab-${tab}`);
+        
+        currentTab = tab;
+    }
+
+    // Handle tab button clicks
+    tabButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const tab = button.dataset.tab;
+            
+            // Update active tab
+            updateActiveTab(tab);
+            
+            // If data is already cached, display it immediately
+            if (newsData[tab]) {
+                displayNews(newsData[tab]);
+            } else {
+                // Load news for this tab
+                await loadNewsForTab(tab);
+            }
+        });
+        
+        // Add keyboard support for tabs
+        button.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                button.click();
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const nextTab = button.nextElementSibling || tabButtons[0];
+                nextTab.focus();
+                nextTab.click();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prevTab = button.previousElementSibling || tabButtons[tabButtons.length - 1];
+                prevTab.focus();
+                prevTab.click();
+            }
+        });
+    });
+
+    // Render news articles to the DOM
+    function displayNews(articles) {
+        if (!articles || articles.length === 0) {
+            newsContent.innerHTML = `
+                <div class="text-center py-12">
+                    <div class="text-gray-400 text-6xl mb-4">📰</div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No news found</h3>
+                    <p class="text-gray-600 mb-4">Please try switching to a different tab or check back later.</p>
+                    <button id="refreshNews" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center justify-center mx-auto">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh News
+                    </button>
+                </div>
+            `;
+            
+            // Add event listener to the refresh button
+            const refreshButton = document.getElementById('refreshNews');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', () => {
+                    loadNewsForTab(currentTab);
+                });
+            }
+            return;
+        }
+
+        newsContent.innerHTML = `
+            <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                ${articles.map(article => `
+                    <article class="news-card bg-white rounded-lg shadow-md overflow-hidden">
+                        ${article.thumbnail ? `
+                            <a href="${article.link}" target="_blank" rel="noopener noreferrer">
+                                <img src="${article.thumbnail}" alt="${article.title}" class="w-full h-48 object-cover">
+                            </a>
+                        ` : `
+                            <a href="${article.link}" target="_blank" rel="noopener noreferrer">
+                                <div class="w-full h-48 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                                    <svg class="w-12 h-12 text-white opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path>
+                                    </svg>
+                                </div>
+                            </a>
+                        `}
+                        <div class="p-6">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2 line-clamp-2 hover:text-blue-600">
+                                <a href="${article.link}" target="_blank" rel="noopener noreferrer">
+                                    ${article.title}
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 line-clamp-3">${article.snippet || ''}</p>
+                            <div class="flex justify-between items-center text-sm text-gray-500">
+                                <span class="font-medium truncate pr-4">${article.source || 'Unknown Source'}</span>
+                                <span class="flex-shrink-0">${formatDate(article.date)}</span>
+                            </div>
+                        </div>
+                    </article>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    // Handle the "Change Location" button click
+    changeLocationBtn.addEventListener('click', () => {
+        // Clear cached data
+        newsData = {};
+        currentLocationData = null;
+        localStorage.removeItem('newsHubLocation');
+        
+        // Reset tab counts
+        tabButtons.forEach(button => {
+            button.querySelector('.tab-count').textContent = '';
+        });
+        
+        // Reset tab labels to default
+        if (cityTabLabel) cityTabLabel.textContent = 'City';
+        if (stateTabLabel) stateTabLabel.textContent = 'State';
+        if (countryTabLabel) countryTabLabel.textContent = 'Country';
+        
+        // Switch back to location selection
+        newsDashboard.classList.add('hidden');
+        locationSelection.classList.remove('hidden');
+        locationSearch.value = '';
+        locationDropdown.classList.add('hidden');
+        locationError.classList.add('hidden');
+    });
+
+    // Handle retry loading button click
+    retryLoadingBtn.addEventListener('click', () => {
+        loadNewsForTab(currentTab);
+    });
+
+    // Hide location dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!locationSearch.contains(e.target) && !locationDropdown.contains(e.target)) {
+            locationDropdown.classList.add('hidden');
+        }
+    });
+
+    // Initialize the app
+    initApp();
+</script>
+    </body>
+</html>
