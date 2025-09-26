@@ -69,7 +69,7 @@ class UserStories(Base):
     __tablename__ = "user_stories"
 
     id = Column(UUID, primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-    author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'))
     title = Column(String(255), nullable=True)
     title_hash = Column(String(64), unique=True, index=True, nullable=True)
     context = Column(TEXT)
@@ -128,7 +128,7 @@ class GeneratedUserStories(Base):
     __tablename__ = "generated_user_stories"
 
     id = Column(UUID, primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
+    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'))
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
     snippet = Column(TEXT)

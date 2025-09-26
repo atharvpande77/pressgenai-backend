@@ -476,6 +476,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
 
     except IntegrityError:
         await session.rollback()
+        traceback.print_exc()
         raise HTTPException(
             status_code=409,
             detail="A story with the same context or title already exists.",
@@ -491,6 +492,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
     
 async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
     try:
+        print(user_story_id)
         result = await session.execute(select(UserStories).filter(UserStories.id == user_story_id))
         return result.scalars().first()
     except Exception as e:
@@ -530,7 +532,7 @@ async def generate_and_store_story_questions(session: AsyncSession, user_story_i
         raise HTTPException(status_code=502, detail="openai service error")    
     
     try:
-        deactivate_old_questions(session, user_story_id)
+        await deactivate_old_questions(session, user_story_id)
         stored_questions = await store_questions(session, user_story_id, questions)
         return stored_questions
     except Exception as e:
