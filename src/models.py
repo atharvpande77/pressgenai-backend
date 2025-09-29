@@ -1,7 +1,7 @@
 from src.config.database import Base
 
 from sqlalchemy import Column, UUID, String, Integer
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ENUM, TEXT, BOOLEAN
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ENUM, TEXT, BOOLEAN, ARRAY
 from sqlalchemy import text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy import func
@@ -133,6 +133,8 @@ class GeneratedUserStories(Base):
     title = Column(TEXT)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
+    category = Column(String(50))
+    tags = Column("tags", ARRAY(String))
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)

@@ -34,13 +34,13 @@ async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm
     
     access_token, refresh_token = create_tokens(
         data = {"sub": str(user.id), "email": user.email, "role": user.role},
-        access_exp_delta = timedelta(minutes=30),
-        refresh_exp_delta = timedelta(days=7)
+        access_exp_delta = timedelta(minutes=24*60),
+        refresh_exp_delta = timedelta(days=30)
     )
     
     return LoginResponse(
         access_token=access_token,
         token_type='bearer',
-        expires_in=30*60,
+        expires_in=26*60,
         user=user
     )

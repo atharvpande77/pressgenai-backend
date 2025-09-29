@@ -6,7 +6,7 @@ class Settings(BaseSettings):
         env_file_encoding = 'utf-8'
     )
 
-    POSTGRES_CNX_STR: str
+    # POSTGRES_CNX_STR: str
     POSTGRES_CNX_STR_LOCAL: str
     # ENVIRONMENT: str
     SERP_API_KEY: str

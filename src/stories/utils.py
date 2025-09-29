@@ -480,15 +480,23 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
 
         ---
 
-        Output the result strictly in valid JSON format with the following keys. (no explanations, no extra text):
+        Output the result strictly in valid JSON format with the following keys (no explanations, no extra text):
+
         {{
         "title": "If 'Optional Title' above is empty, generate a suitable title here. Otherwise, return an empty string.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
-        "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful."
+        "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
+        "category": "Choose exactly one category from this fixed list: [Local News, National News, Politics, Crime, Public Safety, Education, Environment, Civic Issues, Sports, Business, Technology, Lifestyle, Culture]",
+        "tags": ["A list of 5–10 relevant keywords or short phrases based on the article (no hashtags, plain text)"]
         }}
 
-        Make sure the article follows journalistic clarity, avoids repetition, and respects the given tone, style, and length.
+        Rules:
+        - Category must be strictly chosen from the provided list only.
+        - Tags should reflect important entities, locations, people, issues, or topics mentioned in the article.
+        - Ensure journalistic clarity, avoid repetition, and follow the given tone, style, and word length.
     """
+
+
     try:
         # print(PROMPT)
         response = await openai_client.chat.completions.create(

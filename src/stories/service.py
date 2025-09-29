@@ -494,7 +494,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
     
 async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
     try:
-        print(user_story_id)
+        # print(user_story_id)
         result = await session.execute(select(UserStories).filter(UserStories.id == user_story_id))
         return result.scalars().first()
     except Exception as e:
@@ -652,7 +652,7 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 async def store_generated_article(session: AsyncSession, generated_user_story: dict, user_story_id: str, creator_id: str):
-    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, title=generated_user_story['title'], snippet=generated_user_story['snippet'], full_text=generated_user_story['full_text'], author_id=creator_id).returning(GeneratedUserStories)
+    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, **generated_user_story).returning(GeneratedUserStories)
     result = await session.execute(stmt)
 
     await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({"status": UserStoryStatus.GENERATED}))
@@ -693,7 +693,7 @@ async def get_generated_user_story(
         )
 
     # Generate article
-    generated_story_dict = await generate_user_story(user_story, [{"question": row.get('question ]'), "answ[er": row.get('answer')} for row in qna])
+    generated_story_dict = await generate_user_story(user_story, [{"question": row.get('question ]'), "answer": row.get('answer')} for row in qna])
     if not generated_story_dict:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -729,7 +729,7 @@ async def update_user_story_status(session: AsyncSession, curr_story: UserStorie
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
+        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.tags, GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
 
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))
