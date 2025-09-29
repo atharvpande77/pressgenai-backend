@@ -135,9 +135,11 @@ class GeneratedUserStories(Base):
     full_text = Column(TEXT)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
+    editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
 
     user_story = relationship("UserStories", back_populates="generated_stories")
     author = relationship("Authors", back_populates="generated_user_stories")
+    editor = relationship("Users", foreign_keys=[editor_id])
 
 class UserRoles(str, Enum):
     ADMIN = "admin"
@@ -173,7 +175,7 @@ class Authors(Base):
         primary_key=True,
     )
     bio = Column(TEXT, nullable=True)
-
+    updated_at = Column(TIMESTAMP, server_onupdate=func.now())
     user = relationship("Users", back_populates="author_profile")
     user_stories = relationship("UserStories", back_populates="author", lazy="selectin")
     generated_user_stories = relationship(

@@ -11,10 +11,11 @@ from openai import OpenAIError
 from fastapi import Path, HTTPException, Depends, status
 from typing import Annotated
 
-from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories
+from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema
 from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story
+from src.auth.dependencies import role_checker
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
 
@@ -433,11 +434,11 @@ async def get_story_by_id(session: AsyncSession, story_id: str):
     
 
 # User stories functions:
-async def create_user_story_db(session: AsyncSession, request: CreateStorySchema):
+async def create_user_story_db(session: AsyncSession, request: CreateStorySchema, curr_creator_id: str):
     try:
         # Normalize and hash inputs
         context = request.context.strip()
-        title = request.title.strip() if request.title else ""
+        title = request.title.strip() if request.title else None
         hashed_context = generate_hash(context)
         hashed_title = generate_hash(title) if title else None
 
@@ -456,6 +457,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
             language=options.language,
             word_length=options.word_length,
             word_length_range=str(word_length_range),
+            author_id=curr_creator_id
         )
 
         session.add(new_story)
@@ -499,10 +501,16 @@ async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
         print(e)
         return None
     
-async def get_user_story_or_404(session: Annotated[AsyncSession, Depends(get_session)], user_story_id: str = Path(...)):
+async def get_user_story_or_404(session: Annotated[AsyncSession, Depends(get_session)], curr_creator: Annotated[Users, Depends(role_checker('creator'))], user_story_id: str = Path(...)):
     user_story = await get_user_story_by_id(session, user_story_id)
     if not user_story:
         raise HTTPException(status_code=404, detail="story not found")
+    if user_story.author_id != curr_creator.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail=f"story {user_story.id} does not belong to the creator {curr_creator.id}"
+        ) 
+
     return user_story
     
 async def get_user_story_questions_db(session: AsyncSession, user_story_id: str):
@@ -614,11 +622,16 @@ async def get_generated_story_db(session: AsyncSession, user_story_id: str):
     result = await session.execute(query)
     return result.scalars().first() or None
 
-async def get_complete_story_by_id(session: AsyncSession, user_story_id: str):
+async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, curr_creator_id: str):
     try:
         user_story_db = await get_user_story_by_id(session, user_story_id)
         if not user_story_db:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'User story with {user_story_id} not found')
+        
+        if user_story_db.author_id != curr_creator_id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+            )
         
         qna = await get_qna_by_user_story_id(session, user_story_db.id, isouter=True)
         # print(qna)
@@ -638,8 +651,8 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str):
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-async def store_generated_article(session: AsyncSession, generated_user_story: dict, user_story_id: str):
-    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, title=generated_user_story['title'], snippet=generated_user_story['snippet'], full_text=generated_user_story['full_text']).returning(GeneratedUserStories)
+async def store_generated_article(session: AsyncSession, generated_user_story: dict, user_story_id: str, creator_id: str):
+    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, title=generated_user_story['title'], snippet=generated_user_story['snippet'], full_text=generated_user_story['full_text'], author_id=creator_id).returning(GeneratedUserStories)
     result = await session.execute(stmt)
 
     await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({"status": UserStoryStatus.GENERATED}))
@@ -650,7 +663,7 @@ async def get_generated_user_story(
     session: AsyncSession, user_story: UserStories, force_regenerate: bool = False
 ):
     user_story_id = user_story.id
-
+    creator_id = user_story.author_id
     # Return cached/generated article if not regenerating
     existing_generated_story = await get_generated_story_db(session, user_story_id)
     if existing_generated_story and not force_regenerate:
@@ -690,11 +703,12 @@ async def get_generated_user_story(
     # Store in DB
     try:
         generated_story_db = await store_generated_article(
-            session, generated_story_dict, user_story_id
+            session, generated_story_dict, user_story_id, creator_id
         )
         return generated_story_db
     except Exception as e:
         print("Error while storing generated article in DB")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error while storing generated article in DB",
@@ -702,9 +716,9 @@ async def get_generated_user_story(
 
     # return {"msg": "hello"}
 
-async def update_user_story_status(session: AsyncSession, user_story_id: str):
+async def update_user_story_status(session: AsyncSession, curr_story: UserStories):
     try:
-        result = await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({'status': UserStoryStatus.SUBMITTED}).returning(UserStories.id, UserStories.status))
+        result = await session.execute(update(UserStories).where(UserStories.id == curr_story.id, UserStories.author_id == curr_story.author_id).values({'status': UserStoryStatus.SUBMITTED}).returning(UserStories.id, UserStories.status))
         await session.commit()
         user_story_db = result.first()
         return {"id": user_story_db.id, "status": user_story_db.status}
@@ -713,9 +727,9 @@ async def update_user_story_status(session: AsyncSession, user_story_id: str):
         print(msg)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=msg)
     
-async def get_user_stories_db(session: AsyncSession, story_status: str, limit: int = 10, offset: int = 0):
+async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True)
+        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
 
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))
@@ -737,17 +751,17 @@ async def get_user_stories_db(session: AsyncSession, story_status: str, limit: i
 
 
 
-async def edit_generated_article_db(session: AsyncSession, generated_article_id: str, updates: EditGeneratedArticleSchema):
+async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str, generated_article_id: str, updates: EditGeneratedArticleSchema):
     try:
         updates_dict = updates.model_dump(exclude_none=True)
         if not updates_dict:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='all fields cannot be null')
         
-        result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id).values(**updates_dict).returning(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at, GeneratedUserStories.updated_at))
+        result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id, GeneratedUserStories.author_id == curr_creator_id).values(**updates_dict).returning(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at, GeneratedUserStories.updated_at))
         await session.commit()
         edited_article = result.first()
         if not edited_article:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail = f"no generated article found with id {generated_article_id}")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail = f"no generated article found with id {generated_article_id}")
         
         return edited_article
     

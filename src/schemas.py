@@ -146,7 +146,7 @@ class UserStoryResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    title: str
+    title: str | None = None
     context: str
     tone: str
     style: str

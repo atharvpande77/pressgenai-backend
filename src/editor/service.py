@@ -3,14 +3,14 @@ from src.editor.schemas import EditArticleSchema
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, or_
 from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException, status
 import traceback
 
-async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, limit: int = 10, offset: int = 0):
+async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, curr_editor_id: str, limit: int = 10, offset: int = 0):
     try:
-        res = await session.execute(select(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at).join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id).filter(and_(UserStories.publish_status == editor_status, UserStories.status == UserStoryStatus.SUBMITTED)).order_by(UserStories.created_at.desc()).limit(limit).offset(offset))
+        res = await session.execute(select(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at).join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id).filter(UserStories.publish_status == editor_status, UserStories.status == UserStoryStatus.SUBMITTED, or_(GeneratedUserStories.editor_id == None, GeneratedUserStories.editor_id == curr_editor_id)).order_by(UserStories.created_at.desc()).limit(limit).offset(offset))
         articles = res.all()
         if not articles:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
@@ -31,8 +31,9 @@ async def get_article_by_id_db(session: AsyncSession, article_id: str):
         return None
     return article
 
-async def update_article_db(session: AsyncSession, article_id: str, payload: EditArticleSchema):
-    stmt = update(GeneratedUserStories).where(GeneratedUserStories.id == article_id).values(payload.model_dump()).returning(GeneratedUserStories)
+async def update_article_db(session: AsyncSession, article_id: str, payload: EditArticleSchema, curr_editor_id: str):
+    values = payload.model_dump()
+    stmt = update(GeneratedUserStories).where(GeneratedUserStories.id == article_id).values(values).returning(GeneratedUserStories)
     result = await session.execute(stmt)
     article_db = result.scalars().first()
     if not article_db:
@@ -50,14 +51,20 @@ async def set_publish_status(session: AsyncSession, user_story_id: str, new_publ
         return None
     return publish_status
 
-async def publish_article_db(session: AsyncSession, article_db: GeneratedUserStories):
+async def set_editor_id(session: AsyncSession, article: GeneratedUserStories, editor_id: str):
+    if not article.editor_id:
+        await session.execute(update(GeneratedUserStories).values(editor_id=editor_id).where(GeneratedUserStories.id == article.id))
+        return True
+    return False
+
+async def publish_article_db(session: AsyncSession, article_db: GeneratedUserStories, curr_editor_id: str):
     publish_status = await set_publish_status(session, article_db.user_story_id, UserStoryPublishStatus.PUBLISHED)
     if not publish_status:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='no story found for this generated article')
     await session.commit()
     return {"msg": "success", "publish_status": publish_status}
 
-async def reject_article_db(session: AsyncSession, article_db: GeneratedUserStories, reason: str):
+async def reject_article_db(session: AsyncSession, article_db: GeneratedUserStories, reason: str, curr_editor_id: str):
     user_story_id = article_db.user_story_id
     try:
         publish_result = await session.execute(

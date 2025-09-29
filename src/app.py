@@ -4,7 +4,7 @@ import socket
 
 from src.stories.router import router as stories_router
 from src.editor.router import router as editor_router
-from src.authors.router import router as authors_router
+from src.creators.router import router as authors_router
 from src.auth.router import router as auth_router
 
 app = FastAPI(

@@ -7,7 +7,8 @@ from src.config.database import get_session
 from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema
 from src.stories.service import add_stories_to_db, get_location_status, fetch_stories_from_db, add_location_record, update_location_timestamp, get_story_by_id, create_user_story_db, get_generated_user_story, upsert_answer, generate_and_store_story_questions, get_user_story_or_404, update_user_story_status, get_user_stories_db, get_complete_story_by_id, edit_generated_article_db
 from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story, get_all_news, get_story_status_dep
-from src.models import UserStories
+from src.models import UserStories, Users, UserRoles
+from src.auth.dependencies import role_checker
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -107,8 +108,14 @@ async def generate_article(id: str, options: GenerateOptionsSchema, session: Ann
         Returns with limit=10 and offset=0 by default
         """
 )
-async def get_user_stories_by_status(session: Session, status: Annotated[Literal['draft', 'submitted', 'rejected', 'published'], Depends(get_story_status_dep)], limit: int | None = 10, offset: int | None = 0):
-    return await get_user_stories_db(session, status, limit, offset)
+async def get_user_stories_by_status(session: Session, status: Annotated[Literal['draft', 'submitted', 'rejected', 'published'], Depends(get_story_status_dep)], curr_creator: Annotated[Users, Depends(role_checker('creator'))], limit: int | None = 10, offset: int | None = 0):
+    return await get_user_stories_db(
+        session,
+        curr_creator.id,
+        status,
+        limit,
+        offset
+    )
 
 
 @router.get(
@@ -120,8 +127,8 @@ async def get_user_stories_by_status(session: Session, status: Annotated[Literal
         Includes metadata such as title, tone, style, language, and context.
         """
 )
-async def get_user_story(session: Session, user_story_id: str):
-    return await get_complete_story_by_id(session, user_story_id)
+async def get_user_story(session: Session, curr_creator: Annotated[Users, Depends(role_checker('creator'))], user_story_id: str):
+    return await get_complete_story_by_id(session, user_story_id, curr_creator.id)
 
 
 @router.post(
@@ -129,69 +136,70 @@ async def get_user_story(session: Session, user_story_id: str):
     status_code=status.HTTP_201_CREATED,
     summary="Create a new user story",
     description="""
-Create a new user story configuration.  
+    Create a new user story configuration.  
 
-A story contains metadata such as:
-- `title` (optional)
-- `context` (required, describes the incident/news)
-- `tone` (e.g., formal, casual, neutral)
-- `style` (e.g., informative, narrative, breaking news)
-- `language` (default: English)
-- `word_length` (numeric target, e.g., 300, 800)
-- `word_length_range` (automatically derived from length)  
+    A story contains metadata such as:
+    - `title` (optional)
+    - `context` (required, describes the incident/news)
+    - `tone` (e.g., formal, casual, neutral)
+    - `style` (e.g., informative, narrative, breaking news)
+    - `language` (default: English)
+    - `word_length` (numeric target, e.g., 300, 800)
+    - `word_length_range` (automatically derived from length)  
 
-This is the first step before generating contextual questions or articles.
-""",
-    responses={
-        201: {
-            "description": "User story successfully created",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": "8c8617b5-9210-4d94-8c52-3a77f813ed1e",
-                        "status": "created",
-                        "title": "Floods in Maharashtra",
-                        "context_preview": "Heavy rainfall has caused severe flooding in...",
-                        "tone": "formal",
-                        "style": "informative",
-                        "language": "English",
-                        "word_length": 500,
-                        "word_length_range": "500–800"
+    This is the first step before generating contextual questions or articles.
+    """,
+        responses={
+            201: {
+                "description": "User story successfully created",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "id": "8c8617b5-9210-4d94-8c52-3a77f813ed1e",
+                            "status": "created",
+                            "title": "Floods in Maharashtra",
+                            "context_preview": "Heavy rainfall has caused severe flooding in...",
+                            "tone": "formal",
+                            "style": "informative",
+                            "language": "English",
+                            "word_length": 500,
+                            "word_length_range": "500–800"
+                        }
                     }
-                }
+                },
+            },
+            400: {
+                "description": "Bad request (invalid input format)",
+                "content": {
+                    "application/json": {
+                        "example": {"detail": "Request validation error: tone must be a string"}
+                    }
+                },
+            },
+            409: {
+                "description": "Conflict (duplicate context or title)",
+                "content": {
+                    "application/json": {
+                        "example": {"detail": "A story with the same context or title already exists."}
+                    }
+                },
+            },
+            500: {
+                "description": "Internal server error (unexpected failure)",
+                "content": {
+                    "application/json": {
+                        "example": {"detail": "An unexpected error occurred while creating the story."}
+                    }
+                },
             },
         },
-        400: {
-            "description": "Bad request (invalid input format)",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Request validation error: tone must be a string"}
-                }
-            },
-        },
-        409: {
-            "description": "Conflict (duplicate context or title)",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "A story with the same context or title already exists."}
-                }
-            },
-        },
-        500: {
-            "description": "Internal server error (unexpected failure)",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "An unexpected error occurred while creating the story."}
-                }
-            },
-        },
-    },
 )
 async def create_new_story(
     request: CreateStorySchema,
-    session: Annotated[AsyncSession, Depends(get_session)]
+    session: Annotated[AsyncSession, Depends(get_session)],
+    curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))]
 ):
-    return await create_user_story_db(session, request)
+    return await create_user_story_db(session, request, curr_creator.id)
 
 
 @router.get(
@@ -315,8 +323,8 @@ async def generate_user_story(session: Session, user_story: UserStoryDep, force_
 
 
 @router.put("/user/generate/{generated_article_id}", response_model=GeneratedStoryResponseSchema)
-async def edit_generated_article(session: Session, generated_article_id: str, payload: EditGeneratedArticleSchema):
-    return await edit_generated_article_db(session, generated_article_id, payload)
+async def edit_generated_article(session: Session, curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))], generated_article_id: str, payload: EditGeneratedArticleSchema):
+    return await edit_generated_article_db(session, curr_creator.id, generated_article_id, payload)
 
 
 @router.patch(
@@ -335,7 +343,7 @@ async def edit_generated_article(session: Session, generated_article_id: str, pa
 async def change_story_status_to_submitted(
     session: Session, user_story: UserStoryDep
 ):
-    return await update_user_story_status(session, user_story.id)
+    return await update_user_story_status(session, user_story)
 
 
 

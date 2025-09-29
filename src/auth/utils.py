@@ -36,8 +36,15 @@ def decrypt_jwt(token: str):
             ALGO
         )
         return payload
+    except jwt.exceptions.ExpiredSignatureError as e:
+        print(e)
+        return None
     except jwt.exceptions.DecodeError as e:
         print(e)
         traceback.print_exc()
-        return {}
+        return None
+    except Exception as e:
+        print(f"Unknown exception while decrypting JWT: {e}")
+        traceback.print_exc()
+        return None
     

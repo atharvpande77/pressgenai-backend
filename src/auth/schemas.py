@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from uuid import UUID
 
-from src.authors.schemas import AuthorResponseSchema
+from src.creators.schemas import AuthorResponseSchema
 
 class AuthSchema(BaseModel):
     email: EmailStr

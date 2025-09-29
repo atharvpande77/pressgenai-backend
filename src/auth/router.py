@@ -44,8 +44,3 @@ async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm
         expires_in=30*60,
         user=user
     )
-
-@router.post('/token')
-async def current_user(curr_author: Annotated[..., Depends(get_current_user)]):
-    print(curr_author.email)
-    return {"msg": "hello"}
