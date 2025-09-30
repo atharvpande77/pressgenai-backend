@@ -467,7 +467,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         - Tone: {user_story.tone or "casual"}  (e.g., formal, casual, neutral)
         - Style: {user_story.style or "informative"}  (e.g., informative, narrative, breaking news)
         - Language: {user_story.language or "English"}
-        - Word Count Target: {f"{user_story.word_length} {str(user_story.word_length_range)}" if user_story.word_length else "Short (300-500)"}  
+        - Word Count Target: {f"{user_story.word_length} {str(user_story.word_length_range)}" if user_story.word_length else "short (300-500)"}  
 
         Story Context:
         "{user_story.context or ""}"  
@@ -486,16 +486,15 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         "title": "If 'Optional Title' above is empty, generate a suitable title here. Otherwise, return an empty string.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
         "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
-        "category": "Choose exactly one category from this fixed list: [Local News, National News, Politics, Crime, Public Safety, Education, Environment, Civic Issues, Sports, Business, Technology, Lifestyle, Culture]",
+        "category": "Choose exactly one category from this fixed list: [local news, national news, politics, crime, public safety, education, environment, civic issues, sports, business, technology, lifestyle, culture]. If none are suitable, use 'general'.",
         "tags": ["A list of 5–10 relevant keywords or short phrases based on the article (no hashtags, plain text)"]
         }}
 
         Rules:
-        - Category must be strictly chosen from the provided list only.
+        - Category must be strictly chosen from the provided list (or 'general' if none apply).
         - Tags should reflect important entities, locations, people, issues, or topics mentioned in the article.
         - Ensure journalistic clarity, avoid repetition, and follow the given tone, style, and word length.
     """
-
 
     try:
         # print(PROMPT)
@@ -514,6 +513,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         # Try parsing JSON output from the model
         try:
             article = json.loads(raw_content)
+            article['category'] = article.get('category', '').strip().lower()
         except json.JSONDecodeError:
             print("AI returned invalid JSON. Wrapping in fallback format.")
             # article = {

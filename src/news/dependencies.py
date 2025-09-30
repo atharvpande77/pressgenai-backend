@@ -1,21 +1,18 @@
 from enum import Enum
+from fastapi import HTTPException, status
 
-class NewsCategory(str, Enum):
-    LOCAL_NEWS = "Local News"
-    INDIA = "India"
-    WORLD = "World"
-    POLITICS = "Politics"
-    SPORTS = "Sports"
-    ENTERTAINMENT = "Entertainment"
-    CRIME = "Crime"
-    BUSINESS = "Business"
-    CIVIC_ISSUES = "Civic Issues"
-    TECHNOLOGY = "Technology"
-    ENVIRONMENT = "Environment"
-    CULTURE = "Culture"
+from src.models import NewsCategory
 
-def get_category_dep(category: str | None):
+def get_category_dep(category: str | None = None):
     if category is None:
-        return None
+        return NewsCategory.GENERAL
     
+    category = category.strip().lower()
+    allowed_categories = [cat.value for cat in NewsCategory]
+    if category not in allowed_categories:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid category. Must be one of: {', '.join(allowed_categories)}"
+        )
+    return category
 

@@ -124,6 +124,23 @@ class UserStoriesAnswers(Base):
         UniqueConstraint('user_story_id', 'question_id', name='unique_user_story_question'),
     )
 
+class NewsCategory(str, Enum):
+    LOCAL_NEWS = "local News"
+    INDIA = "india"
+    WORLD = "world"
+    POLITICS = "politics"
+    SPORTS = "sports"
+    ENTERTAINMENT = "entertainment"
+    CRIME = "crime"
+    BUSINESS = "business"
+    CIVIC_ISSUES = "civic issues"
+    TECHNOLOGY = "technology"
+    ENVIRONMENT = "environment"
+    CULTURE = "culture"
+    GENERAL = "general"
+
+generated_article_enum = ENUM(*[category.value for category in NewsCategory], name="news_category")
+
 class GeneratedUserStories(Base):
     __tablename__ = "generated_user_stories"
 
@@ -133,7 +150,7 @@ class GeneratedUserStories(Base):
     title = Column(TEXT)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
-    category = Column(String(50))
+    category = Column("category", generated_article_enum, default=NewsCategory.GENERAL)
     tags = Column("tags", ARRAY(String))
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
@@ -178,7 +195,7 @@ class Authors(Base):
     )
     bio = Column(TEXT, nullable=True)
     updated_at = Column(TIMESTAMP, server_onupdate=func.now())
-    user = relationship("Users", back_populates="author_profile")
+    user = relationship("Users", back_populates="author_profile", lazy="selectin")
     user_stories = relationship("UserStories", back_populates="author", lazy="selectin")
     generated_user_stories = relationship(
         "GeneratedUserStories", back_populates="author", lazy="selectin"
