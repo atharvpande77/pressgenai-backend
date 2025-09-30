@@ -41,6 +41,6 @@ async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm
     return LoginResponse(
         access_token=access_token,
         token_type='bearer',
-        expires_in=26*60,
+        expires_in=24*60*60,
         user=user
     )
