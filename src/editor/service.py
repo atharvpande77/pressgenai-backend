@@ -8,9 +8,9 @@ from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException, status
 import traceback
 
-async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, limit: int = 10, offset: int = 0):
+async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, curr_editor_id: str, limit: int = 10, offset: int = 0):
     try:
-        res = await session.execute(select(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at).join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id).filter(UserStories.publish_status == editor_status, UserStories.status == UserStoryStatus.SUBMITTED, or_(GeneratedUserStories.editor_id == None)).order_by(UserStories.created_at.desc()).limit(limit).offset(offset))
+        res = await session.execute(select(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at).join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id).filter(UserStories.publish_status == editor_status, UserStories.status == UserStoryStatus.SUBMITTED, or_(GeneratedUserStories.editor_id == None, GeneratedUserStories.editor_id == curr_editor_id)).order_by(UserStories.created_at.desc()).limit(limit).offset(offset))
         articles = res.all()
         if not articles:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
@@ -75,6 +75,12 @@ async def reject_article_db(session: AsyncSession, article_db: GeneratedUserStor
                 rejection_reason=reason
             )
             .returning(UserStories.publish_status, UserStories.rejection_reason)
+        )
+
+        await session.execute(
+            update(GeneratedUserStories)
+            .where(GeneratedUserStories.id == article_db.id)
+            .values(editor_id=curr_editor_id)
         )
         
         publish_status = publish_result.first()

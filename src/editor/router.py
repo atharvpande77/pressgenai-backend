@@ -16,8 +16,8 @@ EditorRoleDep = Annotated[Users, Depends(role_checker(UserRoles.EDITOR, UserRole
 AssignEditorDep = Annotated[Users, Depends(get_article_and_assign_editor)]
 
 @router.get('/articles/status/{editor_status}', response_model=list[ArticleItem])
-async def get_articles_editor_dashboard(session: Session, editor_status: Annotated[str, Depends(get_editor_story_status_dep)], limit: int | None = 10, offset: int | None = 0):
-    return await get_articles_by_publish_status(session, editor_status, limit, offset)
+async def get_articles_editor_dashboard(session: Session, curr_editor: EditorRoleDep, editor_status: Annotated[str, Depends(get_editor_story_status_dep)], limit: int | None = 10, offset: int | None = 0):
+    return await get_articles_by_publish_status(session, editor_status, curr_editor.id, limit, offset)
 
 @router.get('/articles/{article_id}', response_model=ArticleItem)
 async def fetch_article_by_id(article_db: GetArticleDep, curr_editor: EditorRoleDep):

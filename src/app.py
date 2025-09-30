@@ -6,6 +6,7 @@ from src.stories.router import router as stories_router
 from src.editor.router import router as editor_router
 from src.creators.router import router as authors_router
 from src.auth.router import router as auth_router
+from src.admin.router import router as admin_router
 
 app = FastAPI(
     root_path='/pressgenai',
@@ -41,6 +42,7 @@ app.include_router(stories_router, prefix="/api/stories", tags=["stories"])
 app.include_router(editor_router, prefix="/api/editor", tags=["editor"])
 app.include_router(authors_router, prefix="/api/author", tags=["author"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 
 hostname = socket.gethostname()
 IPAddr = socket.gethostbyname(hostname)

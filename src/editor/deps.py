@@ -3,6 +3,8 @@ from fastapi import HTTPException, Path, Depends, status
 from src.models import UserStoryPublishStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
+import traceback
+from uuid import UUID
 
 from src.config.database import get_session
 from src.editor.service import get_article_by_id_db
@@ -25,13 +27,14 @@ def get_editor_story_status_dep(
     
     return status_lower
 
-async def get_article_or_404(article_id: Annotated[str, Path(...)], session: Annotated[AsyncSession, Depends(get_session)]):
+async def get_article_or_404(article_id: Annotated[UUID, Path(...)], session: Annotated[AsyncSession, Depends(get_session)]):
     try:
         article = await get_article_by_id_db(session, article_id)
         if not article:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no article found for id {article_id}")
         return article
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error fetching article for id {article_id}")
 
 
@@ -40,7 +43,7 @@ async def get_article_and_assign_editor(
     article_db: Annotated[GeneratedUserStories, Depends(get_article_or_404)],
     curr_editor: Annotated[Users, Depends(role_checker(UserRoles.EDITOR, UserRoles.ADMIN))]
 ):
-    if article_db.author_id and article_db.editor_id != curr_editor.author_profile:
+    if article_db.editor_id and article_db.editor_id != curr_editor.id:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="Article already under review by another editor"
