@@ -23,7 +23,7 @@ async def get_creator_profile(session: Session, curr_author: curr_author_dep):
         first_name=curr_author.first_name,
         last_name=curr_author.last_name,
         email=curr_author.email,
-        bio=curr_author
+        bio=curr_author.author_profile.bio
     )
 
 @router.patch('/')
