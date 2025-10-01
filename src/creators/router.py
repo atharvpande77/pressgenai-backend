@@ -17,8 +17,8 @@ async def create_author(session: Session, author: CreateAuthorSchema):
     return await create_author_db(session, author)
 
 @router.get('/', response_model=AuthorResponseSchema)
-async def get_creator_profile(session: Session, curr_author: curr_author_dep):
-    return await AuthorResponseSchema(
+async def get_creator_profile(curr_author: curr_author_dep):
+    return AuthorResponseSchema(
         id=curr_author.id,
         first_name=curr_author.first_name,
         last_name=curr_author.last_name,
