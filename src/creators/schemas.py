@@ -16,6 +16,7 @@ class AuthorResponseSchema(BaseModel):
     last_name: str
     email: EmailStr
     bio: str
+    profile_image: str | None = None
 
 class CreatorUpdatePasswordSchema(BaseModel):
     old_password: str = Field(min_length=8, max_length=128)

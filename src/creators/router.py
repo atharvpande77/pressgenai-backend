@@ -23,7 +23,8 @@ async def get_creator_profile(curr_author: curr_author_dep):
         first_name=curr_author.first_name,
         last_name=curr_author.last_name,
         email=curr_author.email,
-        bio=curr_author.author_profile.bio
+        bio=curr_author.author_profile.bio,
+        profile_image="https://fastly.picsum.photos/id/423/110/100.jpg?hmac=D5gzbIo4lyz2RW3hcevcREoogBK39r7XX4NyHFCMgqE"
     )
 
 @router.patch('/')
