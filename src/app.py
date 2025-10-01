@@ -39,6 +39,7 @@ app.add_middleware(
 
 # app.mount("/static", StaticFiles(directory="src/static", html=True), name="static")
 
+
 app.include_router(stories_router, prefix="/api/stories", tags=["stories"])
 app.include_router(editor_router, prefix="/api/editor", tags=["editor"])
 app.include_router(authors_router, prefix="/api/creator", tags=["creator"])
