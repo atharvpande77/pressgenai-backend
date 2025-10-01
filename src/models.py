@@ -182,7 +182,7 @@ class Users(Base):
         nullable=False,
         index=True,
     )
-    author_profile = relationship("Authors", back_populates="user", uselist=False)
+    author_profile = relationship("Authors", back_populates="user", lazy="selectin", uselist=False)
 
 
 class Authors(Base):

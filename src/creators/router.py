@@ -18,7 +18,13 @@ async def create_author(session: Session, author: CreateAuthorSchema):
 
 @router.get('/', response_model=AuthorResponseSchema)
 async def get_creator_profile(session: Session, curr_author: curr_author_dep):
-    return await get_author_profile_db(session, curr_author)
+    return await AuthorResponseSchema(
+        id=curr_author.id,
+        first_name=curr_author.first_name,
+        last_name=curr_author.last_name,
+        email=curr_author.email,
+        bio=curr_author
+    )
 
 @router.patch('/')
 async def update_password(session: Session, curr_creator: curr_author_dep, body: CreatorUpdatePasswordSchema):

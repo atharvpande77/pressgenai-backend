@@ -56,7 +56,7 @@ async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) ->
     
 
 async def get_author_profile_db(session: AsyncSession, curr_creator: Users):
-    query = select(Users).join(Authors, onclause=Users.id == Authors.id).filter(Users.id == curr_creator.id)
+    query = select(Authors).join(Users, onclause=Authors.id == Users.id).where(Users.id == curr_creator.id)
     res = await session.execute(query)
     creator = res.first()
     return creator
