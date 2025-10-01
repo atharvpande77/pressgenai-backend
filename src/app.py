@@ -41,7 +41,7 @@ app.add_middleware(
 
 app.include_router(stories_router, prefix="/api/stories", tags=["stories"])
 app.include_router(editor_router, prefix="/api/editor", tags=["editor"])
-app.include_router(authors_router, prefix="/api/author", tags=["author"])
+app.include_router(authors_router, prefix="/api/creator", tags=["creator"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(news_router, prefix="/api/news", tags=["news"])
