@@ -47,7 +47,14 @@ async def get_article_by_id(
     
     result = await session.execute(
         select(
-            GeneratedUserStories,
+            GeneratedUserStories.id,
+            GeneratedUserStories.title,
+            GeneratedUserStories.snippet,
+            GeneratedUserStories.full_text,
+            GeneratedUserStories.created_at,
+            GeneratedUserStories.updated_at,
+            GeneratedUserStories.category,
+            GeneratedUserStories.tags,
             Creators.id.label("creator_id"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),

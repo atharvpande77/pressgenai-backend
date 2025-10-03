@@ -5,6 +5,8 @@ from src.schemas import GeneratedStoryResponseSchema
 
 
 class ArticleResponse(GeneratedStoryResponseSchema):
+    model_config = ConfigDict(from_attributes=True)
+    
     creator_id: UUID | None = None
     creator_first_name: str | None = None
     creator_last_name: str | None = None
