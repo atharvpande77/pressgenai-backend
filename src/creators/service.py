@@ -94,8 +94,15 @@ async def update_creator_profile_db(session: AsyncSession, curr_creator: Users, 
             await session.execute(update(Authors).values(bio=profile_dict['bio']).where(Authors.id == curr_creator.id))
 
         await session.commit()
-        updated_creator = await session.execute(select(Users, Authors).join(Authors, onclause=Users.id == Authors.id).where(Users.id == curr_creator.id))
-        return updated_creator
+        result = await session.execute(select(Users, Authors).join(Authors, onclause=Users.id == Authors.id).where(Users.id == curr_creator.id))
+        updated_creator = result.first()
+        return AuthorResponseSchema(
+            id=updated_creator.Users.id,
+            first_name=updated_creator.Users.first_name,
+            last_name=updated_creator.Users.last_name,
+            email=updated_creator.Users.email,
+            bio=updated_creator.Authors.bio
+        )
     except DatabaseError as dbe:
         msg = f"Unknown error while updating creator profile: {str(dbe)}"
         raise HTTPException(
