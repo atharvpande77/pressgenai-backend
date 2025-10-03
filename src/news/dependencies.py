@@ -5,7 +5,7 @@ from src.models import NewsCategory
 
 def get_category_dep(category: str | None = None):
     if category is None:
-        return NewsCategory.GENERAL
+        return None
     
     category = category.strip().lower()
     allowed_categories = [cat.value for cat in NewsCategory]

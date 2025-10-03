@@ -22,10 +22,11 @@ async def get_all_articles(
     limit: Annotated[int | None, Query(gt=0, le=100)] = 10,
     offset: int| None = 0
 ):
+    where_clause = (GeneratedUserStories.category == category, UserStories.publish_status == UserStoryPublishStatus.PUBLISHED) if category else (UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,)
     result = await session.execute(
         select(GeneratedUserStories)
         .join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id)
-        .where(GeneratedUserStories.category == category, UserStories.publish_status == UserStoryPublishStatus.PUBLISHED)
+        .where(*where_clause)
         .limit(limit)
         .offset(offset)
     )
