@@ -18,11 +18,13 @@ async def create_author(session: Session, author: CreateAuthorSchema):
 
 @router.get('/', response_model=AuthorResponseSchema)
 async def get_creator_profile(curr_author: curr_author_dep):
+    print(curr_author.username)
     return AuthorResponseSchema(
         id=curr_author.id,
         first_name=curr_author.first_name,
         last_name=curr_author.last_name,
         email=curr_author.email,
+        username=curr_author.username,
         bio=curr_author.author_profile.bio,
         profile_image="https://fastly.picsum.photos/id/423/110/100.jpg?hmac=D5gzbIo4lyz2RW3hcevcREoogBK39r7XX4NyHFCMgqE"
     )

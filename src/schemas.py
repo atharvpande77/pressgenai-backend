@@ -114,6 +114,7 @@ class GeneratedStoryResponseSchema(BaseModel):
 
     id: UUID
     title: str | None = None
+    slug: str | None = None
     snippet: str | None = None
     full_text: str | None = None
     category: str | None = None

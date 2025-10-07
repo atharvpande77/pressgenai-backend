@@ -14,7 +14,7 @@ from typing import Annotated
 from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema
-from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story
+from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify
 from src.auth.dependencies import role_checker
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
@@ -536,7 +536,8 @@ async def generate_and_store_story_questions(session: AsyncSession, user_story_i
         questions = await generate_ai_questions(user_story)
         if not questions:
             raise HTTPException(status_code=500, detail="Error while parsing questions or no questions returned")
-    except OpenAIError:
+    except OpenAIError as e:
+        print(str(e))
         raise HTTPException(status_code=502, detail="openai service error")    
     
     try:
@@ -600,9 +601,7 @@ async def upsert_answer(session: AsyncSession, user_story_id: str, answer: Answe
     except IntegrityError as e:
         await session.rollback()
         raise HTTPException(status_code=400, detail="Invalid data or constraint violation")
-    except Exception as e:
-        await session.rollback()
-        raise HTTPException(status_code=500, detail="Could not store answer at the moment")
+    
     
 async def get_qna_by_user_story_id(session: AsyncSession, user_story_id: str, isouter: bool = False):
     result = await session.execute(select(UserStoriesQuestions.id.label('question_id'), UserStoriesQuestions.question_type, UserStoriesQuestions.question_text.label('question'), UserStoriesAnswers.id.label('answer_id'), UserStoriesAnswers.answer_text.label('answer')).join(
@@ -651,8 +650,26 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+
+import secrets
+
+async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: int = 5):
+    title_slug = sluggify(title)
+    slug = title_slug
+    for _ in range(max_attempts):
+        suffix = secrets.token_hex(3)
+        slug = f"{title_slug}-{suffix}"
+        existing = await session.execute(
+            select(GeneratedUserStories).where(GeneratedUserStories.slug == slug)
+        )
+        if not existing.scalar_one_or_none():
+            return slug
+
 async def store_generated_article(session: AsyncSession, generated_user_story: dict, user_story_id: str, creator_id: str):
-    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, **generated_user_story).returning(GeneratedUserStories)
+    title = generated_user_story.get('title')
+    slug = await generate_unique_slug(session, title)
+
+    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, **generated_user_story).returning(GeneratedUserStories)
     result = await session.execute(stmt)
 
     await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({"status": UserStoryStatus.GENERATED}))

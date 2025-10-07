@@ -9,6 +9,7 @@ from datetime import datetime
 from openai import AsyncOpenAI, OpenAIError
 import json
 import asyncio
+import unicodedata
 
 from src.config.settings import settings
 from src.schemas import LocationDataSchema, GenerateOptionsSchema, ReqSchema
@@ -558,3 +559,13 @@ def get_story_status_dep(
         )
     
     return status_lower
+
+
+def sluggify(title: str, max_length: int = 50) -> str:
+    text = unicodedata.normalize('NFKD', title)
+    text = text.encode('ascii', 'ignore').decode('ascii')
+
+    text = re.sub(r'[^\w\s-]', '', text.lower())
+    text = re.sub(r'[-\s]+', '-', text)
+    slug = text.strip('-')[:max_length]
+    return slug.rstrip('-')

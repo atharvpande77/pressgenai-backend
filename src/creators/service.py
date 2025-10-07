@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, DatabaseError
 from sqlalchemy import select, update
 from fastapi import HTTPException, status
+import secrets
 
 from src.creators.schemas import CreateAuthorSchema, AuthorResponseSchema, UpdateProfileSchema
 from src.models import Authors, Users, UserRoles
@@ -10,12 +11,38 @@ from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
 
 
+async def _check_username_exists(session: AsyncSession, username: str) -> bool:
+    existing_user = await session.scalar(
+        select(Users).where(Users.username == username)
+    )
+    return existing_user is not None
+
+async def generate_unique_username(session: AsyncSession, email: str, max_attempts: int = 10) -> str:
+    base_username = f"@{email.split('@')[0][:16].lower()}"
+    if _check_username_exists(session, base_username):
+        return base_username
+    
+    for _ in range(max_attempts):
+        username = f"{base_username}.{secrets.token_hex(1)}"
+        if await _check_username_exists(session, username):
+            return username
+        
+    return f"{base_username}.{secrets.token_hex(2)}"
+
+
 async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) -> AuthorResponseSchema:
     hashed_password = hash_password(author.password)
     try:
+        first_name = author.first_name.strip().capitalize()
+        last_name = author.last_name.strip().capitalize() if author.last_name else None
+        email = author.email
+
+        unique_username = await generate_unique_username(session, email)
+
         users_stmt = insert(Users).values(
-            first_name=author.first_name,
-            last_name=author.last_name,
+            first_name=first_name,
+            last_name=last_name,
+            username=unique_username,
             email=author.email,
             password=hashed_password,
             role=UserRoles.CREATOR
@@ -23,6 +50,7 @@ async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) ->
             Users.id,
             Users.first_name,
             Users.last_name,
+            Users.username,
             Users.email,
             Users.role
         )
@@ -48,7 +76,7 @@ async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) ->
         )
         
     except IntegrityError as ie:
-        print(ie)
+        print(ie, ie.detail)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail='author already exists'

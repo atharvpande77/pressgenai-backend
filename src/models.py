@@ -148,6 +148,7 @@ class GeneratedUserStories(Base):
     user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'))
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
+    slug = Column(String(255), unique=True, index=True)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
     category = Column("category", generated_article_enum, default=NewsCategory.GENERAL)
@@ -176,6 +177,7 @@ class Users(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100))
     email = Column(String(255), unique=True, index=True, nullable=False)
+    username = Column(String(255), unique=True, index=True, nullable=True)
     password = Column(String(255), nullable=False)
     role = Column(
         user_roles_enum,

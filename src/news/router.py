@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, joinedload, selectinload
 from sqlalchemy import select
 from uuid import UUID
 
@@ -24,13 +24,30 @@ async def get_all_articles(
 ):
     where_clause = (GeneratedUserStories.category == category, UserStories.publish_status == UserStoryPublishStatus.PUBLISHED) if category else (UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,)
     result = await session.execute(
-        select(GeneratedUserStories)
-        .join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id)
-        .where(*where_clause)
-        .limit(limit)
-        .offset(offset)
+        select(
+            GeneratedUserStories.id,
+            GeneratedUserStories.title,
+            GeneratedUserStories.snippet,
+            GeneratedUserStories.full_text,
+            GeneratedUserStories.created_at,
+            GeneratedUserStories.updated_at,
+            GeneratedUserStories.category,
+            GeneratedUserStories.tags,
+            GeneratedUserStories.slug,
+            Creators.username.label("creator_username"),
+            Creators.first_name.label("creator_first_name"),
+            Creators.last_name.label("creator_last_name"),
+            Editors.first_name.label("editor_first_name"),
+            Editors.last_name.label("editor_last_name")
+        )
+            .join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id)
+            .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
+            .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
+            .where(*where_clause)
+            .limit(limit)
+            .offset(offset)
     )
-    articles = result.scalars().all()
+    articles = result.all()
     return articles
 
 
@@ -39,10 +56,10 @@ async def get_all_categories():
     return [cat.value.title() for cat in NewsCategory]
 
 
-@router.get('/{article_id}', response_model=ArticleResponse)
+@router.get('/{article_slug}', response_model=ArticleResponse)
 async def get_article_by_id(
     session: Annotated[AsyncSession, Depends(get_session)],
-    article_id: UUID
+    article_slug: str
 ):
     
     result = await session.execute(
@@ -55,43 +72,79 @@ async def get_article_by_id(
             GeneratedUserStories.updated_at,
             GeneratedUserStories.category,
             GeneratedUserStories.tags,
-            Creators.id.label("creator_id"),
+            GeneratedUserStories.slug,
+            Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
-            Editors.id.label("editor_id"),
             Editors.first_name.label("editor_first_name"),
             Editors.last_name.label("editor_last_name")
         )
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
             .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
-            .where(GeneratedUserStories.id == article_id)
+            .where(GeneratedUserStories.slug == article_slug)
             .limit(1)
     )
     article = result.first()
     if not article:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
-            detail=f'no article found for id {article_id}'
+            detail=f'no article found for id {article_slug}'
         )
     return article
 
-@router.get('/creator/{creator_id}', response_model=CreatorProfileResponse)
+@router.get(
+    '/creator/{username}',
+    response_model=CreatorProfileResponse
+)
 async def get_creator_profile(
     session: Annotated[AsyncSession, Depends(get_session)],
-    creator_id: UUID
+    username: Annotated[str, Path(
+        min_length=2,
+        max_length=64,
+        regex="^@[A-Za-z0-9._%+-]+$"
+    )],
+    sort_by: Annotated[str, Query(pattern="^(newest|oldest|popular)$")] = "newest"
 ):
-    
     result = await session.execute(
         select(Authors)
-            .join(UserStories, onclause=UserStories.author_id == Authors.id)
-            .where(Authors.id == creator_id, UserStories.publish_status == UserStoryPublishStatus.PUBLISHED)
+            .where(Authors.user.has(username=username))
     )
     creator = result.scalars().first()
+    
+    if not creator:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="creator not found"
+        )
+    creator_user_db = creator.user
+    creator_username = creator_user_db.username
+    creator_first_name = creator_user_db.first_name
+    creator_last_name = creator_user_db.last_name
+
+    articles_query = (
+        select(GeneratedUserStories)
+            .options(
+                selectinload(
+                    GeneratedUserStories.editor
+                )
+            )
+            .where(
+                GeneratedUserStories.user_story.has(publish_status=UserStoryPublishStatus.PUBLISHED),
+                GeneratedUserStories.author_id == creator.id
+            )
+    )
+    if sort_by == "newest" or sort_by == "popular":
+        articles_query = articles_query.order_by(GeneratedUserStories.created_at.desc())
+    elif sort_by == "oldest":
+        articles_query = articles_query.order_by(GeneratedUserStories.created_at.asc())
+
+    result = await session.execute(articles_query)
+    articles = result.scalars().all()
 
     return CreatorProfileResponse(
-        id=creator.id,
-        first_name=creator.user.first_name,
-        last_name=creator.user.last_name,
+        username=creator_username,
+        first_name=creator_first_name,
+        last_name=creator_last_name,
         bio=creator.bio,
-        articles=creator.generated_user_stories
+        articles=articles
     )
