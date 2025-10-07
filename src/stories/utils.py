@@ -487,7 +487,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         "title": "If 'Optional Title' above is empty, generate a suitable title here. Otherwise, return an empty string.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
         "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
-        "category": "Choose exactly one category from this fixed list: [local news, national news, politics, crime, public safety, education, environment, civic issues, sports, business, technology, lifestyle, culture]. If none are suitable, use 'general'.",
+            "category": ["A list of 1–3 categories from this fixed list: [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]. Should always be a list even i f there is only one category. Only include multiple categories if they truly fit the article. If none apply, use 'general'."],
         "tags": ["A list of 5–10 relevant keywords or short phrases based on the article (no hashtags, plain text)"]
         }}
 
@@ -514,7 +514,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         # Try parsing JSON output from the model
         try:
             article = json.loads(raw_content)
-            article['category'] = article.get('category', '').strip().lower()
+            article['category'] = article.get('category', '').strip().lower().replace(' ', '-')
         except json.JSONDecodeError:
             print("AI returned invalid JSON. Wrapping in fallback format.")
             # article = {

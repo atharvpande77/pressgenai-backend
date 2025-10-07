@@ -3,3 +3,7 @@
 frontend
 .env
 news-agg-html/
+__pycache__/
+ *.pyc
+ *.pyo
+*.pyd

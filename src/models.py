@@ -125,7 +125,7 @@ class UserStoriesAnswers(Base):
     )
 
 class NewsCategory(str, Enum):
-    LOCAL_NEWS = "local News"
+    LOCAL_NEWS = "local-news"
     INDIA = "india"
     WORLD = "world"
     POLITICS = "politics"
@@ -133,7 +133,7 @@ class NewsCategory(str, Enum):
     ENTERTAINMENT = "entertainment"
     CRIME = "crime"
     BUSINESS = "business"
-    CIVIC_ISSUES = "civic issues"
+    CIVIC_ISSUES = "civic-issues"
     TECHNOLOGY = "technology"
     ENVIRONMENT = "environment"
     CULTURE = "culture"
@@ -151,7 +151,7 @@ class GeneratedUserStories(Base):
     slug = Column(String(255), unique=True, index=True)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
-    category = Column("category", generated_article_enum, default=NewsCategory.GENERAL)
+    category = Column("category", ARRAY(generated_article_enum), default=[NewsCategory.GENERAL])
     tags = Column("tags", ARRAY(String))
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
