@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from src.config.database import get_session
 from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStoryPublishStatus, Users, Authors

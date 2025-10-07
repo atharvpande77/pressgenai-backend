@@ -139,7 +139,7 @@ class NewsCategory(str, Enum):
     CULTURE = "culture"
     GENERAL = "general"
 
-generated_article_enum = ENUM(*[category.value for category in NewsCategory], name="news_category")
+news_category_enum = ENUM(*[category.value for category in NewsCategory], name="news_category")
 
 class GeneratedUserStories(Base):
     __tablename__ = "generated_user_stories"
@@ -151,7 +151,7 @@ class GeneratedUserStories(Base):
     slug = Column(String(255), unique=True, index=True)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
-    category = Column("category", ARRAY(generated_article_enum), default=[NewsCategory.GENERAL])
+    category = Column("category", ARRAY(news_category_enum), default=[NewsCategory.GENERAL])
     tags = Column("tags", ARRAY(String))
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
