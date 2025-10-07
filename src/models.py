@@ -157,9 +157,9 @@ class GeneratedUserStories(Base):
     updated_at = Column(TIMESTAMP, onupdate=func.now())
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
 
-    user_story = relationship("UserStories", back_populates="generated_stories")
-    author = relationship("Authors", back_populates="generated_user_stories")
-    editor = relationship("Users", foreign_keys=[editor_id])
+    user_story = relationship("UserStories", back_populates="generated_stories", lazy='selectin')
+    author = relationship("Authors", back_populates="generated_user_stories", lazy='selectin')
+    editor = relationship("Users", foreign_keys=[editor_id], lazy='selectin')
 
 class UserRoles(str, Enum):
     ADMIN = "admin"

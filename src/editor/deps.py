@@ -49,11 +49,13 @@ async def get_article_and_assign_editor(
             detail="Article already under review by another editor"
         )
     
-    await session.execute(
+    result = await session.execute(
         update(GeneratedUserStories)
-        .values(editor_id=curr_editor.id)
-        .where(GeneratedUserStories.id == article_db.id)
+            .values(editor_id=curr_editor.id)
+            .where(GeneratedUserStories.id == article_db.id)
+            .returning(GeneratedUserStories)
     )
+    updated_article = result.scalars().first()
     await session.commit()
-    article_db.editor_id = curr_editor.id
+    # article_db.editor_id = curr_editor.id
     return article_db

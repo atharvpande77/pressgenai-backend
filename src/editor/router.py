@@ -19,21 +19,28 @@ AssignEditorDep = Annotated[Users, Depends(get_article_and_assign_editor)]
 async def get_articles_editor_dashboard(session: Session, curr_editor: EditorRoleDep, editor_status: Annotated[str, Depends(get_editor_story_status_dep)], limit: int | None = 10, offset: int | None = 0):
     return await get_articles_by_publish_status(session, editor_status, curr_editor.id, limit, offset)
 
-@router.get('/articles/{article_id}', response_model=ArticleItem)
+@router.get('/articles/{article_id}')
 async def fetch_article_by_id(article_db: GetArticleDep, curr_editor: EditorRoleDep):
-    return article_db
+    article_db_dict = article_db.__dict__
+    creator = article_db.author.user
+    return ArticleItem(
+        **article_db_dict,
+        creator_username = creator.username,
+        creator_first_name = creator.first_name,
+        creator_last_name = creator.last_name
+    )
 
 @router.patch('/articles/{article_id}')
-async def edit_article(session: Session, curr_editor: AssignEditorDep, article_id: str, payload: EditArticleSchema):
-    return await update_article_db(session, article_id, payload, curr_editor.id)
+async def edit_article_and_publish(session: Session, assigned_article: AssignEditorDep, article_id: str, payload: EditArticleSchema):
+    return await update_article_db(session, article_id, payload, assigned_article.editor_id)
 
 @router.post('/articles/{article_id}')
-async def publish_article(session: Session, article_db: GetArticleDep, curr_editor: AssignEditorDep):
+async def publish_article(session: Session, article_db: GetArticleDep, assigned_article: AssignEditorDep):
     """
         For now, only changes the publish status to published 
     """
 
-    return await publish_article_db(session, article_db, curr_editor.id)
+    return await publish_article_db(session, article_db, assigned_article.editor_id)
 
 @router.post('/articles/{article_id}/reject', response_model=RejectedEndpointResponse)
 async def reject_article(session: Session, payload: RejectArticleSchema, curr_editor: EditorRoleDep, article_db: GetArticleDep):
