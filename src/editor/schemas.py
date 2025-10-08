@@ -14,7 +14,7 @@ class ArticleItem(BaseModel):
     title: str
     snippet: str | None = None
     full_text: str
-    category: str | None = None
+    category: list[str] | None = []
     tags: list[str] | None = None
     created_at: datetime
     creator_username: str | None = None

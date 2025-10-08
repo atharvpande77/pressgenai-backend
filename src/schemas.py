@@ -117,7 +117,7 @@ class GeneratedStoryResponseSchema(BaseModel):
     slug: str | None = None
     snippet: str | None = None
     full_text: str | None = None
-    category: list[str] = []
+    category: list[str] | None = []
     tags: list[str] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

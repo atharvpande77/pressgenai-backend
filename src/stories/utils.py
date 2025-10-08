@@ -514,7 +514,8 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         # Try parsing JSON output from the model
         try:
             article = json.loads(raw_content)
-            article['category'] = article.get('category', '').strip().lower().replace(' ', '-')
+            # article['category'] = article.get('category', '').strip().lower().replace(' ', '-')
+            article['category'] = [category.lower().replace(' ', '-') for category in article['category']]
         except json.JSONDecodeError:
             print("AI returned invalid JSON. Wrapping in fallback format.")
             # article = {
@@ -528,7 +529,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         return article
 
     except Exception as e:
-        print(f"Error generating user story: {e}", exc_info=True)
+        print(f"Error generating user story: {e}")
         # return {
         #     "title": "",
         #     "snippet": "<p>Error occurred while generating the story.</p>",
