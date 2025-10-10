@@ -1,9 +1,12 @@
 from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserStoryPublishStatus, Users
 from src.editor.schemas import EditArticleSchema
+from src.config.settings import settings
+from src.aws.utils import get_bucket_base_url
+from src.utils.query import get_article_images_json_query, creator_profile_image, editor_profile_image
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError
-from sqlalchemy import select, update, or_
+from sqlalchemy import select, update, or_, func, literal, case
 from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException, status
 import traceback
@@ -11,8 +14,46 @@ from uuid import UUID
 
 async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, curr_editor_id: UUID, limit: int = 10, offset: int = 0):
     try:
-        res = await session.execute(select(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.category, GeneratedUserStories.tags, GeneratedUserStories.created_at, Users.username.label('creator_username'), Users.first_name.label('creator_first_name'), Users.last_name.label('creator_last_name')).join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id).join(Users, onclause=Users.id == GeneratedUserStories.author_id).filter(UserStories.publish_status == editor_status, UserStories.status == UserStoryStatus.SUBMITTED, or_(GeneratedUserStories.editor_id == None, GeneratedUserStories.editor_id == curr_editor_id)).order_by(UserStories.created_at.desc()).limit(limit).offset(offset))
+        # creator_profile_image = case(
+        #     (Users.profile_image_key != None,
+        #     func.concat(
+        #         literal(get_bucket_base_url()),
+        #         Users.profile_image_key
+        #     )),
+        #     else_=None
+        # ).label("creator_profile_image")
+        res = await session.execute(
+                select(
+                    GeneratedUserStories.id,
+                    GeneratedUserStories.title,
+                    GeneratedUserStories.snippet,
+                    GeneratedUserStories.full_text,
+                    GeneratedUserStories.category,
+                    GeneratedUserStories.tags,
+                    GeneratedUserStories.images_keys,
+                    GeneratedUserStories.created_at,
+                    get_article_images_json_query(),
+                    Users.username.label('creator_username'),
+                    Users.first_name.label('creator_first_name'),
+                    Users.last_name.label('creator_last_name'),
+                    creator_profile_image
+                )
+                    .join(UserStories, UserStories.id == GeneratedUserStories.user_story_id)
+                    .join(Users, Users.id == GeneratedUserStories.author_id)
+                    .filter(
+                        UserStories.publish_status == editor_status,
+                        UserStories.status == UserStoryStatus.SUBMITTED,
+                        or_(
+                            GeneratedUserStories.editor_id == None,
+                            GeneratedUserStories.editor_id == curr_editor_id
+                        )
+                    )
+                    .order_by(UserStories.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+            )
         articles = res.all()
+        # print([article._asdict() for article in articles])
         if not articles:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
         return articles
@@ -33,7 +74,6 @@ async def get_article_by_id_db(session: AsyncSession, article_id: str):
     return article
 
 async def update_article_db(session: AsyncSession, article_id: str, payload: EditArticleSchema, curr_editor_id: UUID):
-    print(curr_editor_id)
     values = payload.model_dump(exclude_none=True)
     if not values:
         raise HTTPException(

@@ -8,6 +8,7 @@ from src.creators.router import router as authors_router
 from src.auth.router import router as auth_router
 from src.admin.router import router as admin_router
 from src.news.router import router as news_router
+from src.media.router import router as media_router
 
 app = FastAPI(
     root_path='/pressgenai',
@@ -46,6 +47,7 @@ app.include_router(authors_router, prefix="/api/creator", tags=["creator"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(news_router, prefix="/api/news", tags=["news"])
+app.include_router(media_router, prefix="/api/media", tags=["media", "images"])
 
 hostname = socket.gethostname()
 IPAddr = socket.gethostbyname(hostname)

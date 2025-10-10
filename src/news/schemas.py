@@ -10,8 +10,10 @@ class ArticleResponse(GeneratedStoryResponseSchema):
     creator_username: str | None = None
     creator_first_name: str | None = None
     creator_last_name: str | None = None
+    creator_profile_image: str | None = None
     editor_first_name: str | None = None
     editor_last_name: str | None = None
+    editor_profile_image: str | None = None
 
 class EditorItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -23,7 +25,10 @@ class EditorItem(BaseModel):
 class ArticleItem(GeneratedStoryResponseSchema):
     model_config = ConfigDict(from_attributes=True)
 
-    editor: EditorItem
+    editor_first_name: str | None = None
+    editor_last_name: str | None = None
+    editor_username: str | None = None
+    editor_profile_image: str | None = None
 
 
 class CreatorProfileResponse(BaseModel):
@@ -33,4 +38,5 @@ class CreatorProfileResponse(BaseModel):
     last_name: str | None = None
     username: str | None = None
     bio: str | None = None
+    profile_image: str | None = None
     articles: list[ArticleItem] = []

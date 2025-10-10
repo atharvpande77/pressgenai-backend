@@ -16,17 +16,20 @@ class ArticleItem(BaseModel):
     full_text: str
     category: list[str] | None = []
     tags: list[str] | None = None
+    images: list[dict] | None = Field(default=[], max_length=3)
     created_at: datetime
     creator_username: str | None = None
     creator_first_name: str
     creator_last_name: str | None = None
+    creator_profile_image: str | None = None
 
 class EditArticleSchema(BaseModel):
     title: Annotated[str | None, Field(min_length=10, max_length=75)] = None
-    # snippet: Annotated[str | None, Field(min_length=100, max_length=1000)] = None
+    snippet: Annotated[str | None, Field(min_length=100, max_length=1000)] = None
     full_text: Annotated[str | None, Field(min_length=1000, max_length=50000)] = None
     category: str | None = None
     tags: list[str] | None = []
+    images_keys: list[str] | None = Field(min_length=1, max_length=3)
 
     @field_validator('category')
     @classmethod

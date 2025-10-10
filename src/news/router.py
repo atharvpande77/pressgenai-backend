@@ -2,17 +2,48 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload, selectinload
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case, literal
+from sqlalchemy.dialects.postgresql import JSONB
 
 from src.config.database import get_session
 from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStoryPublishStatus, Users, Authors
 from src.news.dependencies import get_category_dep
 from src.news.schemas import CreatorProfileResponse, ArticleResponse
+from src.aws.utils import get_bucket_base_url, get_full_s3_object_url
+from src.utils.query import creator_profile_image, editor_profile_image, get_article_images_json_query
 
 router = APIRouter()
 
 Creators = aliased(Users)
 Editors = aliased(Users)
+
+# creator_profile_image = case(
+#         (Users.profile_image_key != None,
+#         func.concat(
+#             literal(get_bucket_base_url()),
+#             Users.profile_image_key
+#         )),
+#         else_=None
+#     ).label("creator_profile_image")
+
+# editor_profile_image = case(
+#         (Users.profile_image_key != None,
+#         func.concat(
+#             literal(get_bucket_base_url()),
+#             Users.profile_image_key
+#         )),
+#         else_=None
+#     ).label("editor_profile_image")
+
+# images_json = func.coalesce(
+#     func.json_agg(
+#         func.json_build_object(
+#             "key", func.unnest(GeneratedUserStories.images_keys),
+#             "url", func.concat(get_bucket_base_url(), func.unnest(GeneratedUserStories.images_keys))
+#         )
+#     ),
+#     func.cast("[]", JSONB)
+# ).label("images")
 
 @router.get('/', response_model=list[ArticleResponse])
 async def get_all_articles(
@@ -26,6 +57,7 @@ async def get_all_articles(
         if category 
         else (UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,)
     )
+
     result = await session.execute(
         select(
             GeneratedUserStories.id,
@@ -37,16 +69,20 @@ async def get_all_articles(
             GeneratedUserStories.category,
             GeneratedUserStories.tags,
             GeneratedUserStories.slug,
+            get_article_images_json_query(),
             Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
+            creator_profile_image,
             Editors.first_name.label("editor_first_name"),
-            Editors.last_name.label("editor_last_name")
+            Editors.last_name.label("editor_last_name"),
+            editor_profile_image
         )
             .join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id)
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
             .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
             .where(*where_clause)
+            .distinct()
             .limit(limit)
             .offset(offset)
     )
@@ -76,12 +112,16 @@ async def get_article_by_id(
             GeneratedUserStories.category,
             GeneratedUserStories.tags,
             GeneratedUserStories.slug,
+            get_article_images_json_query(),
             Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
+            creator_profile_image,
             Editors.first_name.label("editor_first_name"),
-            Editors.last_name.label("editor_last_name")
+            Editors.last_name.label("editor_last_name"),
+            editor_profile_image
         )
+            .select_from(GeneratedUserStories)
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
             .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
             .where(GeneratedUserStories.slug == article_slug)
@@ -93,6 +133,7 @@ async def get_article_by_id(
             status.HTTP_404_NOT_FOUND,
             detail=f'no article found for id {article_slug}'
         )
+    
     return article
 
 @router.get(
@@ -123,31 +164,48 @@ async def get_creator_profile(
     creator_username = creator_user_db.username
     creator_first_name = creator_user_db.first_name
     creator_last_name = creator_user_db.last_name
+    creator_profile_image = get_full_s3_object_url(creator_user_db.profile_image_key)
 
     articles_query = (
-        select(GeneratedUserStories)
-            .options(
-                selectinload(
-                    GeneratedUserStories.editor
-                )
-            )
-            .where(
-                GeneratedUserStories.user_story.has(publish_status=UserStoryPublishStatus.PUBLISHED),
-                GeneratedUserStories.author_id == creator.id
-            )
+        select(
+            GeneratedUserStories.id,
+            GeneratedUserStories.title,
+            GeneratedUserStories.snippet,
+            GeneratedUserStories.full_text,
+            GeneratedUserStories.created_at,
+            GeneratedUserStories.updated_at,
+            GeneratedUserStories.category,
+            GeneratedUserStories.tags,
+            GeneratedUserStories.slug,
+            get_article_images_json_query(),
+            Users.username.label("editor_username"),
+            Users.first_name.label("editor_first_name"),
+            Users.last_name.label("editor_last_name"),
+            editor_profile_image
+        )
+        .select_from(GeneratedUserStories)
+        .outerjoin(Users, Users.id == GeneratedUserStories.editor_id)
+        .where(
+            GeneratedUserStories.user_story.has(publish_status=UserStoryPublishStatus.PUBLISHED),
+            GeneratedUserStories.author_id == creator.id
+        )
     )
+
     if sort_by == "newest" or sort_by == "popular":
         articles_query = articles_query.order_by(GeneratedUserStories.created_at.desc())
     elif sort_by == "oldest":
         articles_query = articles_query.order_by(GeneratedUserStories.created_at.asc())
 
     result = await session.execute(articles_query)
-    articles = result.scalars().all()
+    articles = result.all()
+
+    # print([article._asdict() for article in articles])
 
     return CreatorProfileResponse(
         username=creator_username,
         first_name=creator_first_name,
         last_name=creator_last_name,
         bio=creator.bio,
+        profile_image=creator_profile_image,
         articles=articles
     )

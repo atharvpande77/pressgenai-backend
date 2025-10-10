@@ -10,12 +10,15 @@ import traceback
 from openai import OpenAIError
 from fastapi import Path, HTTPException, Depends, status
 from typing import Annotated
+from uuid import UUID
 
 from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema
 from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify
 from src.auth.dependencies import role_checker
+from src.aws.utils import get_full_s3_object_url
+from src.utils.query import get_article_images_json_query, creator_profile_image, editor_profile_image
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
 
@@ -617,9 +620,18 @@ async def get_qna_by_user_story_id(session: AsyncSession, user_story_id: str, is
     return []
 
 async def get_generated_story_db(session: AsyncSession, user_story_id: str):
-    query = select(GeneratedUserStories).filter(GeneratedUserStories.user_story_id == user_story_id)
+    query = select(GeneratedUserStories.id,
+                    GeneratedUserStories.title,
+                    GeneratedUserStories.snippet,
+                    GeneratedUserStories.full_text,
+                    GeneratedUserStories.created_at,
+                    GeneratedUserStories.updated_at,
+                    GeneratedUserStories.category,
+                    GeneratedUserStories.tags,
+                    GeneratedUserStories.slug,
+                    get_article_images_json_query()).filter(GeneratedUserStories.user_story_id == user_story_id)
     result = await session.execute(query)
-    return result.scalars().first() or None
+    return result.first() or None
 
 async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, curr_creator_id: str):
     try:
@@ -639,7 +651,7 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
             return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna)
         
         generated_article_db = await get_generated_story_db(session, user_story_id)
-        print(generated_article_db.__dict__)
+
         return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna, generated=generated_article_db)
     except DatabaseError as dbe:
         traceback.print_exc()
@@ -669,12 +681,26 @@ async def store_generated_article(session: AsyncSession, generated_user_story: d
     title = generated_user_story.get('title')
     slug = await generate_unique_slug(session, title)
 
-    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, **generated_user_story).returning(GeneratedUserStories)
+    print(generated_user_story)
+
+    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, **generated_user_story).returning(
+        GeneratedUserStories.id,
+        GeneratedUserStories.user_story_id,
+        GeneratedUserStories.author_id,
+        GeneratedUserStories.slug,
+        GeneratedUserStories.title,
+        GeneratedUserStories.snippet,
+        GeneratedUserStories.full_text,
+        GeneratedUserStories.category,
+        GeneratedUserStories.tags,
+        GeneratedUserStories.created_at,
+        get_article_images_json_query()  # include computed JSON in return
+    )
     result = await session.execute(stmt)
 
     await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({"status": UserStoryStatus.GENERATED}))
     await session.commit()
-    return result.scalars().first()
+    return result.first()
 
 async def get_generated_user_story(
     session: AsyncSession, user_story: UserStories, force_regenerate: bool = False
@@ -733,9 +759,18 @@ async def get_generated_user_story(
 
     # return {"msg": "hello"}
 
-async def update_user_story_status(session: AsyncSession, curr_story: UserStories):
+from src.schemas import UploadedImageKeys
+
+async def update_user_story_status(session: AsyncSession, generated_article: GeneratedUserStories, request: UploadedImageKeys):
     try:
-        result = await session.execute(update(UserStories).where(UserStories.id == curr_story.id, UserStories.author_id == curr_story.author_id).values({'status': UserStoryStatus.SUBMITTED}).returning(UserStories.id, UserStories.status))
+        if request:
+            await session.execute(
+                update(GeneratedUserStories)
+                    .where(GeneratedUserStories.id == generated_article.id)
+                    .values(images_keys=request.images_keys)
+            )
+        
+        result = await session.execute(update(UserStories).where(UserStories.id == generated_article.user_story_id, UserStories.author_id == generated_article.author_id).values({'status': UserStoryStatus.SUBMITTED}).returning(UserStories.id, UserStories.status))
         await session.commit()
         user_story_db = result.first()
         return {"id": user_story_db.id, "status": user_story_db.status}
@@ -746,7 +781,7 @@ async def update_user_story_status(session: AsyncSession, curr_story: UserStorie
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.tags, GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
+        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
 
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))
@@ -768,18 +803,38 @@ async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story
 
 
 
+
+
 async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str, generated_article_id: str, updates: EditGeneratedArticleSchema):
     try:
+        article_db = await session.get(GeneratedUserStories, generated_article_id)
+
+        if not article_db:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail = f"no generated article found with id {generated_article_id}")
+        
+        if curr_creator_id != article_db.author_id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Cannot edit other creator's articles"
+            )
+        
+        if article_db.user_story.status not in [UserStoryStatus.COLLECTING, UserStoryStatus.GENERATED]:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="cannot edit a submitted article"
+            )
+
         updates_dict = updates.model_dump(exclude_none=True)
         if not updates_dict:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='all fields cannot be null')
         
-        result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id, GeneratedUserStories.author_id == curr_creator_id).values(**updates_dict).returning(GeneratedUserStories.id, GeneratedUserStories.title, GeneratedUserStories.snippet, GeneratedUserStories.full_text, GeneratedUserStories.created_at, GeneratedUserStories.updated_at))
+        result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id, GeneratedUserStories.author_id == curr_creator_id).values(**updates_dict).returning(GeneratedUserStories))
         await session.commit()
-        edited_article = result.first()
-        if not edited_article:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail = f"no generated article found with id {generated_article_id}")
         
+        edited_article = result.first()._asdict()
+        images_keys = edited_article.get('images_keys', {})
+        edited_article['images'] = [{"key": key, "url": get_full_s3_object_url(key)} for key in images_keys]
+        edited_article.pop('images_keys', None)
         return edited_article
     
     except DatabaseError as e:

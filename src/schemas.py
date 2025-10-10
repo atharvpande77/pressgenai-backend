@@ -109,6 +109,12 @@ class AnswerSchema(BaseModel):
     question_id: str
     answer_text: str
 
+class ArticleImageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    key: str | None = None
+    url: str | None = None
+
 class GeneratedStoryResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,6 +125,7 @@ class GeneratedStoryResponseSchema(BaseModel):
     full_text: str | None = None
     category: list[str] | None = []
     tags: list[str] | None = []
+    images: list[ArticleImageResponse] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -178,6 +185,7 @@ class UserStoryItem(BaseModel):
     initiated_at: Optional[datetime] = None
     generated_title: Optional[str] = None
     generated_snippet: Optional[str] = None
+    images: Optional[list[dict] | None] = []
     generated_story_full_text: Optional[str] = None
     generated_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -187,4 +195,8 @@ class EditGeneratedArticleSchema(BaseModel):
     title: str | None = Field(default=None, max_length=75)
     snippet: str | None = Field(default=None, min_length=30, max_length=900)
     full_text: str | None = Field(default=None, min_length=900, max_length=100000)
+    # images_keys: list[str] | None = Field(default=None, max_length=3, min_length=1)
+
+class UploadedImageKeys(BaseModel):
+    images_keys: list[str] = Field(max_length=3, min_length=1)
 

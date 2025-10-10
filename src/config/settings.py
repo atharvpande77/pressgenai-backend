@@ -16,5 +16,9 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_REFRESH_SECRET: str
 
+    AWS_PROFILE: str
+    AWS_REGION: str
+    PROFILE_IMAGE_S3_BUCKET: str
+
 settings = Settings()
 

@@ -49,6 +49,12 @@ async def get_article_and_assign_editor(
             detail="Article already under review by another editor"
         )
     
+    if article_db.user_story.publish_status == UserStoryPublishStatus.PUBLISHED:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="cannot edit a published article"
+        )
+    
     result = await session.execute(
         update(GeneratedUserStories)
             .values(editor_id=curr_editor.id)

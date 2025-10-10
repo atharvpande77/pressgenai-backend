@@ -152,7 +152,8 @@ class GeneratedUserStories(Base):
     snippet = Column(TEXT)
     full_text = Column(TEXT)
     category = Column("category", ARRAY(news_category_enum), default=[NewsCategory.GENERAL])
-    tags = Column("tags", ARRAY(String))
+    tags = Column("tags", ARRAY(String), default=list)
+    images_keys = Column("images_keys", ARRAY(String), default=list)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
@@ -184,7 +185,9 @@ class Users(Base):
         nullable=False,
         index=True,
     )
-    author_profile = relationship("Authors", back_populates="user", lazy="selectin", uselist=False)
+    profile_image_key = Column(String(200))
+    active = Column(BOOLEAN, default=True)
+    author_profile = relationship("Authors", back_populates="user", lazy="selectin", uselist=False, cascade="delete")
 
 
 class Authors(Base):

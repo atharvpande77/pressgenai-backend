@@ -27,7 +27,7 @@ class AuthorResponseSchema(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    username: str | None
+    username: str | None = None
     bio: str | None
     profile_image: str | None = None
 

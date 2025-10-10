@@ -1,18 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import Annotated, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
+from uuid import UUID
 
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema
+from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys
 from src.stories.service import add_stories_to_db, get_location_status, fetch_stories_from_db, add_location_record, update_location_timestamp, get_story_by_id, create_user_story_db, get_generated_user_story, upsert_answer, generate_and_store_story_questions, get_user_story_or_404, update_user_story_status, get_user_stories_db, get_complete_story_by_id, edit_generated_article_db
 from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story, get_all_news, get_story_status_dep
-from src.models import UserStories, Users, UserRoles
+from src.models import UserStories, Users, UserRoles, GeneratedUserStories
 from src.auth.dependencies import role_checker
+from src.media.service import check_article_authorization
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
 UserStoryDep = Annotated[UserStories, Depends(get_user_story_or_404)]
+GeneratedArticleDep = Annotated[GeneratedUserStories, Depends(check_article_authorization)]
 
 @router.get("/", include_in_schema=False)
 async def get_feed():
@@ -106,7 +109,7 @@ async def generate_article(id: str, options: GenerateOptionsSchema, session: Ann
         Fetch a paginated list of user stories created by status ('draft', 'submitted', 'rejected' or 'published').  
         Supports `limit` and `offset` for pagination.
         Returns with limit=10 and offset=0 by default
-        """
+    """
 )
 async def get_user_stories_by_status(session: Session, status: Annotated[Literal['draft', 'submitted', 'rejected', 'published'], Depends(get_story_status_dep)], curr_creator: Annotated[Users, Depends(role_checker('creator'))], limit: int | None = 10, offset: int | None = 0):
     return await get_user_stories_db(
@@ -328,7 +331,7 @@ async def edit_generated_article(session: Session, curr_creator: Annotated[Users
 
 
 @router.patch(
-    "/user/{user_story_id}",
+    "/user/{generated_article_id}",
     summary="Change story status to submitted",
     description="""
     Update the status of a specific user story to **SUBMITTED**.  
@@ -341,9 +344,9 @@ async def edit_generated_article(session: Session, curr_creator: Annotated[Users
     },
 )
 async def change_story_status_to_submitted(
-    session: Session, user_story: UserStoryDep
+    session: Session, generated_article: GeneratedArticleDep, request: UploadedImageKeys | None = Body(default=None)
 ):
-    return await update_user_story_status(session, user_story)
+    return await update_user_story_status(session, generated_article, request)
 
 
 

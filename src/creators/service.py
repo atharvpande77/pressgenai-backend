@@ -2,14 +2,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, DatabaseError
 from sqlalchemy import select, update
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 import secrets
+from typing import Any
 
 from src.creators.schemas import CreateAuthorSchema, AuthorResponseSchema, UpdateProfileSchema
 from src.models import Authors, Users, UserRoles
 from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
-
+from src.aws.service import upload_file
+from src.aws.utils import get_full_s3_object_url
 
 async def _check_username_exists(session: AsyncSession, username: str) -> bool:
     existing_user = await session.scalar(
@@ -19,32 +21,48 @@ async def _check_username_exists(session: AsyncSession, username: str) -> bool:
 
 async def generate_unique_username(session: AsyncSession, email: str, max_attempts: int = 10) -> str:
     base_username = f"@{email.split('@')[0][:16].lower()}"
-    if _check_username_exists(session, base_username):
+    if not await _check_username_exists(session, base_username):
         return base_username
     
     for _ in range(max_attempts):
         username = f"{base_username}.{secrets.token_hex(1)}"
-        if await _check_username_exists(session, username):
+        if not await _check_username_exists(session, username):
             return username
         
     return f"{base_username}.{secrets.token_hex(2)}"
 
 
-async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) -> AuthorResponseSchema:
-    hashed_password = hash_password(author.password)
+async def create_author_db(
+    session: AsyncSession,
+    s3,
+    first_name: str,
+    email: str,
+    password: str,
+    last_name: str | None = None,
+    bio: str | None = None,
+    profile_image: UploadFile | None = None
+) -> AuthorResponseSchema:
+    hashed_password = hash_password(password)
     try:
-        first_name = author.first_name.strip().capitalize()
-        last_name = author.last_name.strip().capitalize() if author.last_name else None
-        email = author.email
+        first_name = first_name.strip().capitalize()
+        last_name = last_name.strip().capitalize() if last_name else None
 
         unique_username = await generate_unique_username(session, email)
+
+        key = await upload_file(
+            s3,
+            file=profile_image,
+            username=unique_username,
+            folder='profile_images'
+        )
 
         users_stmt = insert(Users).values(
             first_name=first_name,
             last_name=last_name,
             username=unique_username,
-            email=author.email,
+            email=email,
             password=hashed_password,
+            profile_image_key=key or None,
             role=UserRoles.CREATOR
         ).returning(
             Users.id,
@@ -52,14 +70,15 @@ async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) ->
             Users.last_name,
             Users.username,
             Users.email,
-            Users.role
+            Users.role,
+            Users.profile_image_key
         )
         res = await session.execute(users_stmt)
         user = res.first()
 
         authors_stmt = insert(Authors).values(
             id=user.id,
-            bio=author.bio
+            bio=bio
         ).returning(
             Authors.bio
         )
@@ -67,12 +86,16 @@ async def create_author_db(session: AsyncSession, author: CreateAuthorSchema) ->
         bio = res.scalar_one_or_none()
         await session.commit()
 
+        profile_img_url = get_full_s3_object_url(user.profile_image_key) if key is not None else None 
+
         return AuthorResponseSchema(
             id=user.id,
             first_name=user.first_name,
             last_name=user.last_name,
+            username=unique_username,
             email=user.email,
-            bio=bio
+            bio=bio,
+            profile_image=profile_img_url
         )
         
     except IntegrityError as ie:
@@ -112,22 +135,48 @@ async def update_creator_password(session: AsyncSession, curr_creator: Users, ol
             detail=msg
         )
     
-async def update_creator_profile_db(session: AsyncSession, curr_creator: Users, body: UpdateProfileSchema):
-    profile_dict = body.model_dump(exclude_none=True)
-    try:
-        user_fields = {key: val for key, val in profile_dict.items() if key in ['first_name', 'last_name']}
-        if user_fields:
-            await session.execute(update(Users).values(**user_fields).where(Users.id == curr_creator.id))
-        if 'bio' in profile_dict:
-            await session.execute(update(Authors).values(bio=profile_dict['bio']).where(Authors.id == curr_creator.id))
+async def update_creator_profile_db(session: AsyncSession, s3, curr_creator: Users, first_name: str | None = None, last_name: str | None = None, bio: str | None = None, profile_image: UploadFile | None = None):
+    user_updates = {}
+    if first_name is not None:
+        user_updates['first_name'] = first_name
+    if last_name is not None:
+        user_updates['last_name'] = last_name
 
-        await session.commit()
-        updated_creator = await session.execute(select(Users, Authors).join(Authors, onclause=Users.id == Authors.id).where(Users.id == curr_creator.id))
-        return updated_creator
-    except DatabaseError as dbe:
-        msg = f"Unknown error while updating creator profile: {str(dbe)}"
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=msg
+    if profile_image is not None:
+        key = await upload_file(
+            s3,
+            file=profile_image,
+            username=curr_creator.username,
+            folder='profile_images'
         )
+        if key:
+            user_updates['profile_image_key'] = key
+
+    if user_updates:
+        await session.execute(
+            update(Users)
+                .where(Users.id == curr_creator.id)
+                .values(user_updates)
+        )
+
+    if bio is not None:
+        await session.execute(
+            update(Authors)
+                .where(Authors.id == curr_creator.id)
+                .values(bio=bio)
+        )
+    
+    await session.commit()
+    await session.refresh(curr_creator)
+    return AuthorResponseSchema(
+        id=curr_creator.id,
+        first_name=curr_creator.first_name,
+        last_name=curr_creator.last_name,
+        email=curr_creator.email,
+        username=curr_creator.username,
+        bio=curr_creator.author_profile.bio,
+        profile_image=get_full_s3_object_url(curr_creator.profile_image_key)
+    )
+
+    
     

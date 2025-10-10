@@ -8,6 +8,7 @@ from src.editor.deps import get_editor_story_status_dep, get_article_or_404, get
 from src.editor.schemas import ArticleItem, EditArticleSchema, RejectArticleSchema, RejectedEndpointResponse
 from src.models import GeneratedUserStories, Users, UserRoles
 from src.auth.dependencies import role_checker
+from src.aws.utils import get_full_s3_object_url, get_images_with_urls
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -23,11 +24,15 @@ async def get_articles_editor_dashboard(session: Session, curr_editor: EditorRol
 async def fetch_article_by_id(article_db: GetArticleDep, curr_editor: EditorRoleDep):
     article_db_dict = article_db.__dict__
     creator = article_db.author.user
+    images_keys = article_db_dict.get('images_keys', [])
+    article_db_dict['images'] = get_images_with_urls(images_keys)
+
     return ArticleItem(
         **article_db_dict,
         creator_username = creator.username,
         creator_first_name = creator.first_name,
-        creator_last_name = creator.last_name
+        creator_last_name = creator.last_name,
+        creator_profile_image=get_full_s3_object_url(creator.profile_image_key)
     )
 
 @router.patch('/articles/{article_id}')
