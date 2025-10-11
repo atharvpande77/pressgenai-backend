@@ -831,10 +831,11 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
         result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id, GeneratedUserStories.author_id == curr_creator_id).values(**updates_dict).returning(GeneratedUserStories))
         await session.commit()
         
-        edited_article = result.first()._asdict()
-        images_keys = edited_article.get('images_keys', {})
-        edited_article['images'] = [{"key": key, "url": get_full_s3_object_url(key)} for key in images_keys]
-        edited_article.pop('images_keys', None)
+        edited_article = result.scalars().first()
+
+        images_keys = edited_article.images_keys
+        edited_article.images = [{"key": key, "url": get_full_s3_object_url(key)} for key in edited_article.images_keys] if images_keys else []
+        # print(edited_article)
         return edited_article
     
     except DatabaseError as e:
