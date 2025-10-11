@@ -835,7 +835,6 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
 
         images_keys = edited_article.images_keys
         edited_article.images = [{"key": key, "url": get_full_s3_object_url(key)} for key in edited_article.images_keys] if images_keys else []
-        # print(edited_article)
         return edited_article
     
     except DatabaseError as e:

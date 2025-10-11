@@ -10,30 +10,30 @@ from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStor
 from src.news.dependencies import get_category_dep
 from src.news.schemas import CreatorProfileResponse, ArticleResponse
 from src.aws.utils import get_bucket_base_url, get_full_s3_object_url
-from src.utils.query import creator_profile_image, editor_profile_image, get_article_images_json_query
+from src.utils.query import get_article_images_json_query
 
 router = APIRouter()
 
 Creators = aliased(Users)
 Editors = aliased(Users)
 
-# creator_profile_image = case(
-#         (Users.profile_image_key != None,
-#         func.concat(
-#             literal(get_bucket_base_url()),
-#             Users.profile_image_key
-#         )),
-#         else_=None
-#     ).label("creator_profile_image")
+creator_profile_image = case(
+        (Creators.profile_image_key != None,
+        func.concat(
+            literal(get_bucket_base_url()),
+            Creators.profile_image_key
+        )),
+        else_=None
+    ).label("creator_profile_image")
 
-# editor_profile_image = case(
-#         (Users.profile_image_key != None,
-#         func.concat(
-#             literal(get_bucket_base_url()),
-#             Users.profile_image_key
-#         )),
-#         else_=None
-#     ).label("editor_profile_image")
+editor_profile_image = case(
+        (Editors.profile_image_key != None,
+        func.concat(
+            literal(get_bucket_base_url()),
+            Editors.profile_image_key
+        )),
+        else_=None
+    ).label("editor_profile_image")
 
 # images_json = func.coalesce(
 #     func.json_agg(
@@ -44,6 +44,7 @@ Editors = aliased(Users)
 #     ),
 #     func.cast("[]", JSONB)
 # ).label("images")
+
 
 @router.get('/', response_model=list[ArticleResponse])
 async def get_all_articles(
@@ -82,7 +83,7 @@ async def get_all_articles(
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
             .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
             .where(*where_clause)
-            .distinct()
+            # .distinct()
             .limit(limit)
             .offset(offset)
     )
