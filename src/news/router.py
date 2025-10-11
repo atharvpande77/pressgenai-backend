@@ -117,10 +117,10 @@ async def get_article_by_id(
             Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
-            get_profile_image_expression("creator_profile_image"),
+            get_profile_image_expression(Creators, label_name="creator_profile_image"),
             Editors.first_name.label("editor_first_name"),
             Editors.last_name.label("editor_last_name"),
-            get_profile_image_expression("editor_profile_image")
+            get_profile_image_expression(Editors, label_name="editor_profile_image")
         )
             .select_from(GeneratedUserStories)
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
