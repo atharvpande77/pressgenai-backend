@@ -29,7 +29,7 @@ class EditArticleSchema(BaseModel):
     full_text: Annotated[str | None, Field(min_length=1000, max_length=50000)] = None
     category: str | None = None
     tags: list[str] | None = []
-    images_keys: list[str] | None = Field(min_length=1, max_length=3)
+    images_keys: list[str] | None = Field(default=[], max_length=3)
 
     @field_validator('category')
     @classmethod
