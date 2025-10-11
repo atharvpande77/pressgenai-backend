@@ -1,8 +1,6 @@
 from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserStoryPublishStatus, Users
 from src.editor.schemas import EditArticleSchema
-from src.config.settings import settings
-from src.aws.utils import get_bucket_base_url
-from src.utils.query import get_article_images_json_query, creator_profile_image, editor_profile_image
+from src.utils.query import get_article_images_json_query, get_profile_image_expression
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError
@@ -36,7 +34,7 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
                     Users.username.label('creator_username'),
                     Users.first_name.label('creator_first_name'),
                     Users.last_name.label('creator_last_name'),
-                    creator_profile_image
+                    get_profile_image_expression(label_name="creator_profile_image")
                 )
                     .join(UserStories, UserStories.id == GeneratedUserStories.user_story_id)
                     .join(Users, Users.id == GeneratedUserStories.author_id)

@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import Annotated, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
-from uuid import UUID
 
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys

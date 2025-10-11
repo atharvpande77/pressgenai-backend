@@ -18,7 +18,7 @@ from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, Use
 from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify
 from src.auth.dependencies import role_checker
 from src.aws.utils import get_full_s3_object_url
-from src.utils.query import get_article_images_json_query, creator_profile_image, editor_profile_image
+from src.utils.query import get_article_images_json_query, get_profile_image_expression
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
 

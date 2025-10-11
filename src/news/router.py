@@ -10,30 +10,30 @@ from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStor
 from src.news.dependencies import get_category_dep
 from src.news.schemas import CreatorProfileResponse, ArticleResponse
 from src.aws.utils import get_bucket_base_url, get_full_s3_object_url
-from src.utils.query import get_article_images_json_query
+from src.utils.query import get_article_images_json_query, get_profile_image_expression
 
 router = APIRouter()
 
 Creators = aliased(Users)
 Editors = aliased(Users)
 
-creator_profile_image = case(
-        (Creators.profile_image_key != None,
-        func.concat(
-            literal(get_bucket_base_url()),
-            Creators.profile_image_key
-        )),
-        else_=None
-    ).label("creator_profile_image")
+# creator_profile_image = case(
+#         (Creators.profile_image_key != None,
+#         func.concat(
+#             literal(get_bucket_base_url()),
+#             Creators.profile_image_key
+#         )),
+#         else_=None
+#     ).label("creator_profile_image")
 
-editor_profile_image = case(
-        (Editors.profile_image_key != None,
-        func.concat(
-            literal(get_bucket_base_url()),
-            Editors.profile_image_key
-        )),
-        else_=None
-    ).label("editor_profile_image")
+# editor_profile_image = case(
+#         (Editors.profile_image_key != None,
+#         func.concat(
+#             literal(get_bucket_base_url()),
+#             Editors.profile_image_key
+#         )),
+#         else_=None
+#     ).label("editor_profile_image")
 
 # images_json = func.coalesce(
 #     func.json_agg(
@@ -74,10 +74,10 @@ async def get_all_articles(
             Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
-            creator_profile_image,
+            get_profile_image_expression(Creators, "creator_profile_image"),
             Editors.first_name.label("editor_first_name"),
             Editors.last_name.label("editor_last_name"),
-            editor_profile_image
+            get_profile_image_expression(Editors, "editor_profile_image")
         )
             .join(UserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id)
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
@@ -117,10 +117,10 @@ async def get_article_by_id(
             Creators.username.label("creator_username"),
             Creators.first_name.label("creator_first_name"),
             Creators.last_name.label("creator_last_name"),
-            creator_profile_image,
+            get_profile_image_expression("creator_profile_image"),
             Editors.first_name.label("editor_first_name"),
             Editors.last_name.label("editor_last_name"),
-            editor_profile_image
+            get_profile_image_expression("editor_profile_image")
         )
             .select_from(GeneratedUserStories)
             .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
@@ -182,7 +182,7 @@ async def get_creator_profile(
             Users.username.label("editor_username"),
             Users.first_name.label("editor_first_name"),
             Users.last_name.label("editor_last_name"),
-            editor_profile_image
+            get_profile_image_expression(label_name="editor_profile_image")
         )
         .select_from(GeneratedUserStories)
         .outerjoin(Users, Users.id == GeneratedUserStories.editor_id)
