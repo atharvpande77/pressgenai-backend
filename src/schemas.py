@@ -198,5 +198,5 @@ class EditGeneratedArticleSchema(BaseModel):
     # images_keys: list[str] | None = Field(default=None, max_length=3, min_length=1)
 
 class UploadedImageKeys(BaseModel):
-    images_keys: list[str] = Field(max_length=3, min_length=1)
+    images_keys: list[str] | None = Field(None, max_length=3)
 
