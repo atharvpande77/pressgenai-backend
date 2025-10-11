@@ -12,6 +12,7 @@ def get_current_unix_timestamp():
 
 def get_full_file_key(prefix: str, filename: str):
     filename_without_ext, ext = filename.split('.')
+    filename_without_ext = filename_without_ext.replace(' ', '_')
     return f"{prefix}/{filename_without_ext}_{get_current_unix_timestamp()}.{ext}"
 
 async def upload_file(
