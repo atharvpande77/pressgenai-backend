@@ -659,7 +659,7 @@
                 <div><label for="language" class="block text-sm font-medium text-gray-700">Language</label><select id="language" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option>English</option><option>Hindi</option><option>Marathi</option></select></div>
                 <div><label for="tone" class="block text-sm font-medium text-gray-700">Tone</label><select id="tone" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option>Neutral</option><option>Formal</option><option>Casual</option></select></div>
                 <div><label for="style" class="block text-sm font-medium text-gray-700">Style</label><select id="style" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option>Informative</option><option>Narrative</option></select></div>
-                <div><label for="length" class="block text-sm font-medium text-gray-700">Length (100-400 words)</label><input type="number" id="length" min="100" max="400" value="250" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>` 
+                <div><label for="length" class="block text-sm font-medium text-gray-700">Length</label><select id="length" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"><option value="short">Short</option><option value="medium" selected>Medium</option><option value="long">Long</option></select></div>`
                 : ''}
 
                 ${isGenerated ? `<div class="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -717,21 +717,21 @@
         const tone = document.getElementById('tone')?.value.toLowerCase() || 'neutral';
         const style = document.getElementById('style')?.value.toLowerCase() || 'informative';
         const lengthInput = document.getElementById('length');
-        let length = 250;
-        if (lengthInput) {
-            length = parseInt(lengthInput.value, 10);
-            if (isNaN(length) || length < 100) length = 100;
-            if (length > 400) length = 400;
-        }
-
-        article.generationOptions = { language, tone: tone.charAt(0).toUpperCase() + tone.slice(1), style: style.charAt(0).toUpperCase() + style.slice(1), length };
+        // let length = 250;
+        // if (lengthInput) {
+        //     length = parseInt(lengthInput.value, 10);
+        //     if (isNaN(length) || length < 100) length = 100;
+        //     if (length > 400) length = 400;
+        // }
+        const length = lengthInput.value.toLowerCase() || 'medium'
+        article.generationOptions = { language, tone: tone.charAt(0).toUpperCase() + tone.slice(1), style: style.charAt(0).toUpperCase() + style.slice(1), length: length };
         article.status = 'Generating';
         workspaceArticles.set(article.id, article);
         
         renderWorkspaceArticles();
         closeSlideOver();
 
-        const requestBody = { tone, style, length, language };
+        const requestBody = { tone, style, word_length: length, language };
 
         try {
             const response = await fetch(`http://localhost:8000/api/stories/generate/${article.id}`, {

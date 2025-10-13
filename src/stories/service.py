@@ -781,7 +781,7 @@ async def update_user_story_status(session: AsyncSession, generated_article: Gen
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
+        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.slug, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
 
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))

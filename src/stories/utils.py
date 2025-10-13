@@ -194,7 +194,7 @@ def is_news_story_fresh(story, cutoff_datetime: datetime) -> bool:
     """
     story_pub_date = story.get("date", "")
     if not story_pub_date:
-        return False
+        return False, False
     
     story_pub_date = story_pub_date.replace(' ', '').strip()
     
@@ -279,7 +279,9 @@ async def fetch_news_articles(request: LocationDataSchema, since_timestamp: date
                 break  # no more results
 
             for story in results:
-                is_fresh, published_timestamp = is_news_story_fresh(story, cutoff_datetime)
+                _ = is_news_story_fresh(story, cutoff_datetime)
+                print(_)
+                is_fresh, published_timestamp = _
                 if is_fresh:
                     story['date'] = published_timestamp
                     link = story.get("link")
@@ -311,7 +313,7 @@ async def rewrite_story(options: GenerateOptionsSchema, story) -> dict:
         Constraints:
         - Tone: {options.tone}
         - Style: {options.style}
-        - Target length: around {options.length} words
+        - Target length: around {options.word_length} words
         - Language: {options.language}
         - Output the rewritten snippet in clean HTML format, using proper <p>, <b>, <br> tags for readability.
         - Provide a new engaging title as well.

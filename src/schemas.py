@@ -183,6 +183,7 @@ class UserStoryItem(BaseModel):
     status: str = None
     publish_status: str = None
     initiated_at: Optional[datetime] = None
+    slug: str | None = None
     generated_title: Optional[str] = None
     generated_snippet: Optional[str] = None
     images: Optional[list[dict] | None] = []
