@@ -331,7 +331,7 @@
     const workspaceArticles = new Map(); // Articles moved to the "Generate" tab
     let searchTimeout;
 
-    const API_BASE_URL = 'https://www.citihubkiosk.com/pressgenai/api/stories/user'
+    const API_BASE_URL = 'https://www.citihubkiosk.com/pressgenai/api/stories'
 
     // DOM elements
     const locationSelection = document.getElementById('locationSelection');
@@ -374,7 +374,7 @@
     // --- LOCATION & DATA FETCHING ---
     async function searchLocations(query) {
         try {
-            const response = await fetch(`https://api.geocode.earth/v1/search?text=${encodeURIComponent(query)}&size=5&api_key=ge-fe2bbad426fadab4`);
+            const response = await fetch(`https://api.geocode.earth/v1/search?text=${encodeURIComponent(query)}&size=5&api_key=ge-9999fb348a288c9d`);
             if (!response.ok) throw new Error(`API error: ${response.status}`);
             const data = await response.json();
             const results = data.features.map(f => ({
@@ -736,7 +736,7 @@
         const requestBody = { tone, style, word_length: length, language };
 
         try {
-            const response = await fetch(`http://localhost:8000/api/stories/generate/${article.id}`, {
+            const response = await fetch(`${API_BASE_URL}/generate/${article.id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)

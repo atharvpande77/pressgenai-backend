@@ -8,6 +8,8 @@ from sqlalchemy import func
 from enum import Enum
 import uuid
 
+
+time_diff_interval = text("INTERVAL '5 hours 30 minutes'")
 class Locations(Base):
     __tablename__ = "locations"
 
@@ -82,8 +84,8 @@ class UserStories(Base):
     language = Column(String(50))
     word_length = Column(String(20))
     word_length_range = Column(String(50))
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now() + time_diff_interval)
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now() + time_diff_interval)
     status = Column("status",user_stories_status_enum, default=UserStoryStatus.COLLECTING)
     # status = Column(String(20), default=UserStoryStatus.COLLECTING)
     publish_status = Column("publish_status", user_stories_publish_status_enum, default=UserStoryPublishStatus.PENDING)
@@ -103,7 +105,7 @@ class UserStoriesQuestions(Base):
     question_key = Column(String(50))
     question_type = Column("question_type", ENUM("what", "who", "where", "why", "when", "how", "sources", name="question_type"))
     question_text = Column(TEXT, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
     is_active = Column(BOOLEAN, default=True)
 
     user_story = relationship("UserStories", back_populates="questions")
@@ -115,8 +117,8 @@ class UserStoriesAnswers(Base):
     user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
     question_id = Column(UUID(as_uuid=True), ForeignKey('user_stories_questions.id'), nullable=False)
     answer_text = Column(TEXT, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
+    updated_at = Column(TIMESTAMP, server_default=func.now(), server_onupdate=func.now()+time_diff_interval)
 
     user_story = relationship("UserStories", back_populates="answers")
 
@@ -154,8 +156,8 @@ class GeneratedUserStories(Base):
     category = Column("category", ARRAY(news_category_enum), default=[NewsCategory.GENERAL])
     tags = Column("tags", ARRAY(String), default=list)
     images_keys = Column("images_keys", ARRAY(String), default=list)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, onupdate=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
+    updated_at = Column(TIMESTAMP, onupdate=func.now()+time_diff_interval)
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
 
     user_story = relationship("UserStories", back_populates="generated_stories", lazy='selectin')
