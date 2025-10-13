@@ -307,13 +307,15 @@ async def rewrite_story(options: GenerateOptionsSchema, story) -> dict:
     if not story or not story.title or not story.snippet:
         return {"title": "", "snippet": ""}
 
+    words = get_word_length_range(options.word_length)
+
     prompt = f"""
         You are an AI editorial assistant. Rewrite the following news article into a new version.
 
         Constraints:
         - Tone: {options.tone}
         - Style: {options.style}
-        - Target length: around {options.word_length} words
+        - Target length: around {words} words
         - Language: {options.language}
         - Output the rewritten snippet in clean HTML format, using proper <p>, <b>, <br> tags for readability.
         - Provide a new engaging title as well.

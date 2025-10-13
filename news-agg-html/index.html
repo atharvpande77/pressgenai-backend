@@ -331,6 +331,8 @@
     const workspaceArticles = new Map(); // Articles moved to the "Generate" tab
     let searchTimeout;
 
+    const API_BASE_URL = 'https://www.citihubkiosk.com/pressgenai/api/stories/user'
+
     // DOM elements
     const locationSelection = document.getElementById('locationSelection');
     const appContainer = document.getElementById('appContainer');
@@ -470,7 +472,7 @@
                 break;
         }
         try {
-            const response = await fetch('http://localhost:8000/api/stories', {
+            const response = await fetch(`${API_BASE_URL}/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)
@@ -626,7 +628,7 @@
                     <div class="flex justify-between text-sm text-gray-600"><span>Language:</span><span class="font-medium">${options.language}</span></div>
                     <div class="flex justify-between text-sm text-gray-600"><span>Tone:</span><span class="font-medium">${options.tone}</span></div>
                     <div class="flex justify-between text-sm text-gray-600"><span>Style:</span><span class="font-medium">${options.style}</span></div>
-                    <div class="flex justify-between text-sm text-gray-600"><span>Length:</span><span class="font-medium">${options.length} words</span></div>
+                    <div class="flex justify-between text-sm text-gray-600"><span>Length:</span><span class="font-medium">${options.length.toUpperCase() || 'N/A'}</span></div>
                 </div>`;
         }
 
