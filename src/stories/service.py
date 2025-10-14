@@ -681,7 +681,7 @@ async def store_generated_article(session: AsyncSession, generated_user_story: d
     title = generated_user_story.get('title')
     slug = await generate_unique_slug(session, title)
 
-    print(generated_user_story)
+    # print(generated_user_story)
 
     stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, **generated_user_story).returning(
         GeneratedUserStories.id,
@@ -693,8 +693,7 @@ async def store_generated_article(session: AsyncSession, generated_user_story: d
         GeneratedUserStories.full_text,
         GeneratedUserStories.category,
         GeneratedUserStories.tags,
-        GeneratedUserStories.created_at,
-        get_article_images_json_query()  # include computed JSON in return
+        GeneratedUserStories.created_at
     )
     result = await session.execute(stmt)
 

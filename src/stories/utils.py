@@ -566,7 +566,7 @@ def get_story_status_dep(
     return status_lower
 
 
-def sluggify(title: str, max_length: int = 50, transliterate: bool = True) -> str:
+def sluggify(title: str, max_length: int = 75, transliterate: bool = True) -> str:
     """
     Convert a title to a URL-friendly slug, supporting multiple languages.
     
