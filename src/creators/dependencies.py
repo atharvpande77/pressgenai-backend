@@ -39,14 +39,14 @@ async def validate_profile_image(
     # Check file size (2MB limit)
     file_size = 0
     chunk_size = 1024 * 1024  # 1MB
-    max_size = 2 * 1024 * 1024  # 2MB
+    max_size = 10 * 1024 * 1024  # 2MB
     
     for chunk in iter(lambda: profile_image.file.read(chunk_size), b""):
         file_size += len(chunk)
         if file_size > max_size:
             raise HTTPException(
                 status_code=400,
-                detail="File too large. Maximum size is 2MB"
+                detail="File too large. Maximum size is 10MB"
             )
     
     # Reset file pointer after reading

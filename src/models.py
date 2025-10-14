@@ -76,7 +76,7 @@ class UserStories(Base):
     title_hash = Column(String(64), unique=True, index=True, nullable=True)
     context = Column(TEXT)
     context_hash = Column(String(64), unique=True, index=True)
-    mode = Column(String(20))
+    mode = Column(String(10))
     full_text = Column(TEXT, comment="The full article content for manual mode.", nullable=True)
     full_text_hash = Column(String(64), nullable=True, index=True)
     tone = Column(String(50))
@@ -180,6 +180,7 @@ class Users(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100))
     email = Column(String(255), unique=True, index=True, nullable=False)
+    phone = Column(String(50), unique=True)
     username = Column(String(255), unique=True, index=True, nullable=True)
     password = Column(String(255), nullable=False)
     role = Column(

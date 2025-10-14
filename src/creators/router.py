@@ -25,6 +25,7 @@ async def create_author(
     first_name: str = Form(..., max_length=100),
     last_name: Optional[str] = Form(None, max_length=100),
     email: EmailStr = Form(..., max_length=254),
+    phone: str | None = Form(None, max_length=20),
     bio: Optional[str] = Form(None, max_length=1500),
     password: str = Form(..., min_length=8, max_length=128, description="Password (8-128 characters)"),
     profile_image: Optional[UploadFile] = Depends(validate_profile_image)
@@ -35,6 +36,7 @@ async def create_author(
         first_name,
         email,        # Fixed: email comes before password
         password,     # Fixed: password comes after email
+        phone,
         last_name,    # Fixed: correct order
         bio,          # Fixed: correct order
         profile_image # Fixed: correct order
@@ -48,6 +50,7 @@ async def get_creator_profile(curr_author: curr_author_dep):
         first_name=curr_author.first_name,
         last_name=curr_author.last_name,
         email=curr_author.email,
+        phone=curr_author.phone,
         username=curr_author.username,
         bio=curr_author.author_profile.bio,
         profile_image=get_full_s3_object_url(curr_author.profile_image_key) if curr_author.profile_image_key else None

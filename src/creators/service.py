@@ -38,6 +38,7 @@ async def create_author_db(
     first_name: str,
     email: str,
     password: str,
+    phone: str | None = None,
     last_name: str | None = None,
     bio: str | None = None,
     profile_image: UploadFile | None = None
@@ -62,6 +63,7 @@ async def create_author_db(
             username=unique_username,
             email=email,
             password=hashed_password,
+            phone=phone,
             profile_image_key=key or None,
             role=UserRoles.CREATOR
         ).returning(
@@ -70,6 +72,7 @@ async def create_author_db(
             Users.last_name,
             Users.username,
             Users.email,
+            Users.phone,
             Users.role,
             Users.profile_image_key
         )
