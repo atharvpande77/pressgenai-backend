@@ -566,11 +566,37 @@ def get_story_status_dep(
     return status_lower
 
 
-def sluggify(title: str, max_length: int = 50) -> str:
+def sluggify(title: str, max_length: int = 50, transliterate: bool = True) -> str:
+    """
+    Convert a title to a URL-friendly slug, supporting multiple languages.
+    
+    Args:
+        title: The text to convert
+        max_length: Maximum length of the slug (default 50)
+        transliterate: If True, converts Indic scripts to ASCII (requires `unidecode`)
+    
+    Returns:
+        A URL-safe slug
+    """
+    # Optional transliteration for Indic languages
+    if transliterate:
+        try:
+            from unidecode import unidecode
+            title = unidecode(title)
+        except ImportError:
+            # If unidecode not available, continue with Unicode
+            pass
+    
+    # Normalize unicode (decompose accented characters)
     text = unicodedata.normalize('NFKD', title)
-    text = text.encode('ascii', 'ignore').decode('ascii')
-
-    text = re.sub(r'[^\w\s-]', '', text.lower())
+    
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Replace common special characters and spaces with hyphens
+    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
     text = re.sub(r'[-\s]+', '-', text)
+    
+    # Trim hyphens and apply max length
     slug = text.strip('-')[:max_length]
     return slug.rstrip('-')
