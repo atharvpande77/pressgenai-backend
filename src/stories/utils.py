@@ -398,47 +398,65 @@ async def generate_ai_questions(user_story_db: UserStories) -> list[dict]:
     word_length_range = user_story_db.word_length_range
 
     PROMPT = f"""
-You are a journalism assistant.  
-The user has provided the following context (about an incident or occasion for which they wish to create a professional-grade news article) and their preferences:
+        You are a journalism assistant helping to prepare inputs for generating a professional-grade news article.
 
-Title (optional): {title or "N/A"}
-Tone: {tone}
-Style: {style}
-Language: {language}
-Word Count Target: {word_length} {word_length_range} words
-Context/Brief Description: {context}
+        The user has provided the following information and preferences:
 
-Your task is to generate a set of clear, structured, and context-aware questions that will help the user provide the essential details needed to create a complete and professional-grade news article.  
-These questions will be directly answered by the user, and the answers will later be used to generate the final article.
+        Title (optional): {title or "N/A"}  
+        Tone: {tone}  
+        Style: {style}  
+        Language: {language}  
+        Word Count Target: {word_length} {word_length_range} words  
+        Context/Brief Description: {context}
 
-Guidelines for the questions:
-- Generate between 1 and 6 questions depending on the context (never more than 6).
-- Do NOT repeat or rephrase details already clearly provided in the context.  
-- Instead, ask complementary questions that uncover missing details, perspectives, consequences, or deeper insights.  
-  (For example: if the context already mentions WHAT happened, you might ask WHY it happened, WHO was affected, HOW people reacted, or WHAT the impact was.)
-- Questions may or may not strictly follow 5W1H phrasing, but each must add new information beyond the context.
-- Each question must still be assigned a `question_type`, which must always be one of: "what", "when", "where", "who", "why", "how".
-- You can skip one of the question types, if you feel so.
-- Keep questions direct, descriptive, and designed to extract factual, useful information.
+        Your task:
+        Generate a concise set of clear, structured, and **fact-oriented questions** that will help gather specific, verifiable details needed to write a complete, accurate news article.
 
-Output Rules:
-- The output must be valid JSON, no extra text or explanation.
-- Each question must include: 
-  - "question_key" (string, e.g., q1, q2, q3...)
-  - "question_text" (string, the actual question)
-  - "question_type" (string, one of "what", "when", "where", "who", "why", "how")
+        Each question should focus on eliciting **concrete, descriptive, or measurable information** — not opinions or vague statements.
 
-Return the output strictly in the following JSON format:
+        ---
 
-{{
-  "questions": [
-    {{ "question_key": "q1", "question_text": "...", "question_type": "..." }},
-    {{ "question_key": "q2", "question_text": "...", "question_type": "..." }}
-    ...
-  ]
-}}
-"""
+        ### Guidelines for the questions:
 
+        - Generate **3 to 6** questions, depending on the complexity of the provided context.  
+        - Questions must be **objective, direct, and fact-based**, allowing the user to answer with precise, verifiable details.  
+        - Avoid **yes/no** questions.  
+        - Avoid **subjective, interpretative, or speculative** phrasing unless the article’s style explicitly calls for it (e.g., if *Style = Opinion* or *Editorial*).  
+        - Do **not** repeat information already clearly mentioned in the context.  
+        - Aim to gather all essential details that would help an AI later write a balanced, factual, and complete news piece.  
+        - Do **not** enforce a strict 5W1H format (who, what, when, where, why, how) — instead, focus on what information is most relevant to fill factual gaps.  
+        - Examples of good questions:
+        ✓ "When and where did the incident take place?"  
+        ✓ "Who were the key officials or organizations involved?"  
+        ✓ "What official statements or data have been released?"  
+        ✓ "What were the main outcomes or developments following the event?"  
+        - Examples of questions to avoid:
+        × "Do you think the event was successful?"  
+        × "How do people feel about this policy?"  
+        × "Why did this happen?" (too speculative)
+
+        ---
+
+        ### Output Format Rules:
+
+        Return the output **only** in valid JSON format — no explanations, notes, or extra text.
+
+        Each question object must include:
+        - `"question_key"` — string key such as "q1", "q2", etc.  
+        - `"question_text"` — the full text of the question  
+
+        ---
+
+        ### Final Output Format:
+
+        {{
+        "questions": [
+            {{ "question_key": "q1", "question_text": "..." }},
+            {{ "question_key": "q2", "question_text": "..." }},
+            ...
+        ]
+        }}
+        """
 
 
     
@@ -464,7 +482,6 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
     # del qna['question_id']
     # del qna['answer_id']
     # del qna['question_type']
-
     PROMPT = f"""
         You are an AI news writing assistant. Generate a professional-grade news article based on the following inputs:
 
@@ -489,6 +506,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
 
         {{
         "title": "If 'Optional Title' above is empty, generate a suitable title here. Otherwise, return an empty string.",
+        "english_title": "If the article is not in English, provide an exact translation (not summarization) of the original title into English, keeping it under 12 words. If the article is in English, leave this empty.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
         "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
             "category": ["A list of 1–3 categories from this fixed list: [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]. Should always be a list even i f there is only one category. Only include multiple categories if they truly fit the article. If none apply, use 'general'."],
@@ -497,7 +515,11 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
 
         Rules:
         - Category must be strictly chosen from the provided list (or 'general' if none apply).
+        - Make sure that the title is not too long or too short (max 100 characters).
+        - The word count target is only for the full text field. Title and snippet are not counted.
         - Tags should reflect important entities, locations, people, issues, or topics mentioned in the article.
+        - At least 70% of the tags MUST be in English, regardless of article language.
+        - For non-English names/places, provide both original and English transliteration in tags.
         - Ensure journalistic clarity, avoid repetition, and follow the given tone, style, and word length.
     """
 
@@ -566,37 +588,27 @@ def get_story_status_dep(
     return status_lower
 
 
-def sluggify(title: str, max_length: int = 75, transliterate: bool = True) -> str:
+def sluggify(title: str, max_words: int = 6) -> str:
     """
-    Convert a title to a URL-friendly slug, supporting multiple languages.
+    Convert a title to a URL-friendly slug, using the first n words.
     
     Args:
         title: The text to convert
-        max_length: Maximum length of the slug (default 50)
-        transliterate: If True, converts Indic scripts to ASCII (requires `unidecode`)
+        max_words: Maximum number of words to include in the slug (default 6)
     
     Returns:
-        A URL-safe slug
+        A URL-safe slug using first n words
     """
-    # Optional transliteration for Indic languages
-    if transliterate:
-        try:
-            from unidecode import unidecode
-            title = unidecode(title)
-        except ImportError:
-            # If unidecode not available, continue with Unicode
-            pass
-    
     # Normalize unicode (decompose accented characters)
     text = unicodedata.normalize('NFKD', title)
     
-    # Convert to lowercase
-    text = text.lower()
+    # Convert to lowercase and get first n words
+    words = text.lower().split()[:max_words]
+    text = ' '.join(words)
     
     # Replace common special characters and spaces with hyphens
     text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
     text = re.sub(r'[-\s]+', '-', text)
     
-    # Trim hyphens and apply max length
-    slug = text.strip('-')[:max_length]
-    return slug.rstrip('-')
+    # Trim hyphens
+    return text.strip('-')

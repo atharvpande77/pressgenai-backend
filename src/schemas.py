@@ -102,7 +102,7 @@ class QuestionsResponseSchema(BaseModel):
 
     id: UUID
     question_key: str
-    question_type: Literal["what", "who", "where", "why", "when", "how", "sources"]
+    # question_type: Literal["what", "who", "where", "why", "when", "how", "sources"]
     question_text: str
 
 class AnswerSchema(BaseModel):

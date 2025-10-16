@@ -666,7 +666,7 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
 import secrets
 
 async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: int = 5):
-    title_slug = sluggify(title)
+    title_slug = sluggify(title, max_words=10)
     slug = title_slug
     for _ in range(max_attempts):
         suffix = secrets.token_hex(3)
@@ -679,7 +679,11 @@ async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: 
 
 async def store_generated_article(session: AsyncSession, generated_user_story: dict, user_story_id: str, creator_id: str):
     title = generated_user_story.get('title')
-    slug = await generate_unique_slug(session, title)
+    english_slug_title = generated_user_story.get('english_title') 
+    # print(generated_user_story)
+    # Use english_slug_title for slug if available and article is not in English
+    title_for_slug = english_slug_title if english_slug_title else title
+    slug = await generate_unique_slug(session, title_for_slug)
 
     # print(generated_user_story)
 

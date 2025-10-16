@@ -103,7 +103,8 @@ class UserStoriesQuestions(Base):
     id = Column(UUID, primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
     user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
     question_key = Column(String(50))
-    question_type = Column("question_type", ENUM("what", "who", "where", "why", "when", "how", "sources", name="question_type"))
+    # Keeping question_type for backward compatibility but making it nullable
+    question_type = Column("question_type", ENUM("what", "who", "where", "why", "when", "how", "sources", name="question_type"), nullable=True)
     question_text = Column(TEXT, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
     is_active = Column(BOOLEAN, default=True)
@@ -147,10 +148,11 @@ class GeneratedUserStories(Base):
     __tablename__ = "generated_user_stories"
 
     id = Column(UUID, primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'))
+    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
-    slug = Column(String(255), unique=True, index=True)
+    english_title = Column(TEXT)
+    slug = Column(TEXT, unique=True, index=True)
     snippet = Column(TEXT)
     full_text = Column(TEXT)
     category = Column("category", ARRAY(news_category_enum), default=[NewsCategory.GENERAL])
