@@ -425,15 +425,25 @@ async def generate_ai_questions(user_story_db: UserStories) -> list[dict]:
         - Do **not** repeat information already clearly mentioned in the context.  
         - Aim to gather all essential details that would help an AI later write a balanced, factual, and complete news piece.  
         - Do **not** enforce a strict 5W1H format (who, what, when, where, why, how) — instead, focus on what information is most relevant to fill factual gaps.  
-        - Examples of good questions:
+        - Examples of good questions:  
         ✓ "When and where did the incident take place?"  
         ✓ "Who were the key officials or organizations involved?"  
         ✓ "What official statements or data have been released?"  
         ✓ "What were the main outcomes or developments following the event?"  
-        - Examples of questions to avoid:
+        - Examples of questions to avoid:  
         × "Do you think the event was successful?"  
         × "How do people feel about this policy?"  
         × "Why did this happen?" (too speculative)
+
+        ---
+
+        ### Language Rule (Important):
+
+        All output **must be written entirely in the same language** specified in the user’s preferences (`Language: {language}`).  
+        If the language is "Marathi", write all questions in Marathi.  
+        If "Hindi", write them in Hindi.  
+        If "English", write them in English.  
+        Do **not** mix languages or include translations.
 
         ---
 
@@ -457,6 +467,7 @@ async def generate_ai_questions(user_story_db: UserStories) -> list[dict]:
         ]
         }}
         """
+
 
 
     
