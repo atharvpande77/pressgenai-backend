@@ -1,8 +1,10 @@
-from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict, field_serializer
 from typing import Literal, Optional, Annotated
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
+
+from src.news.utils import get_category_name
 
 class Location(BaseModel):
     city: str | None = None
@@ -128,6 +130,14 @@ class GeneratedStoryResponseSchema(BaseModel):
     images: list[ArticleImageResponse] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @field_serializer('category')
+    def serialize_category(self, categories: list[str] | None) -> list[str]:
+        """Convert category keys to localized names"""
+        if not categories:
+            return []
+        
+        return [get_category_name(cat) for cat in categories]
 
 # class UserStoryResponseSchema(CreateStorySchema):
 #     model_config = ConfigDict(from_attributes=True)

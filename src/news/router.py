@@ -11,6 +11,7 @@ from src.news.dependencies import get_category_dep
 from src.news.schemas import CreatorProfileResponse, ArticleResponse
 from src.aws.utils import get_bucket_base_url, get_full_s3_object_url
 from src.utils.query import get_article_images_json_query, get_profile_image_expression
+from src.news.utils import get_category_name
 
 router = APIRouter()
 
@@ -92,8 +93,8 @@ async def get_all_articles(
 
 
 @router.get('/categories')
-async def get_all_categories():
-    return [cat.value.title() for cat in NewsCategory]
+async def get_all_categories(lang: str | None = 'mr'):
+    return [{"category_value": cat.value, "category_name": get_category_name(cat.value, lang=lang)} for cat in NewsCategory]
 
 
 @router.get('/{article_slug}', response_model=ArticleResponse)

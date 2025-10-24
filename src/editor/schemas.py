@@ -1,10 +1,10 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer
 from datetime import datetime
 from uuid import UUID
 from typing import Annotated
 
 from src.models import NewsCategory
-
+from src.news.utils import get_category_name
 
 category_values = [category.value for category in NewsCategory]
 class ArticleItem(BaseModel):
@@ -22,6 +22,13 @@ class ArticleItem(BaseModel):
     creator_first_name: str
     creator_last_name: str | None = None
     creator_profile_image: str | None = None
+    @field_serializer('category')
+    def serialize_category(self, categories: list[str] | None) -> list[str]:
+        """Convert category keys to localized names"""
+        if not categories:
+            return []
+        
+        return [get_category_name(cat) for cat in categories]
 
 class EditArticleSchema(BaseModel):
     title: Annotated[str | None, Field(min_length=10, max_length=75)] = None
