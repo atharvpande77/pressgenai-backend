@@ -117,7 +117,20 @@ class ArticleImageResponse(BaseModel):
     key: str | None = None
     url: str | None = None
 
-class GeneratedStoryResponseSchema(BaseModel):
+def serialize_categories(categories: list[str] | None) -> list[str]:
+    """Convert category keys to localized names"""
+    if not categories:
+        return []
+    
+    return [{"category_value": cat, "category_name": get_category_name(cat)} for cat in categories]
+class CategorySerializerMixin:
+    """Mixin for category serialization"""
+    
+    @field_serializer('category')
+    def serialize_category(self, categories: list[str] | None) -> list[dict[str, str]]:
+        return serialize_categories(categories)
+
+class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -130,14 +143,7 @@ class GeneratedStoryResponseSchema(BaseModel):
     images: list[ArticleImageResponse] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-    @field_serializer('category')
-    def serialize_category(self, categories: list[str] | None) -> list[str]:
-        """Convert category keys to localized names"""
-        if not categories:
-            return []
-        
-        return [get_category_name(cat) for cat in categories]
+    
 
 # class UserStoryResponseSchema(CreateStorySchema):
 #     model_config = ConfigDict(from_attributes=True)
