@@ -3,8 +3,8 @@ from src.models import NewsCategory
 CATEGORIES_LANG_MAP = {
     NewsCategory.LOCAL_NEWS: {
         "en": "Local News",
-        "hi": "स्थानीय समाचार",
-        "mr": "स्थानिक बातम्या",
+        "hi": "नागपुर",
+        "mr": "नागपूर",
     },
     NewsCategory.INDIA: {
         "en": "India",
