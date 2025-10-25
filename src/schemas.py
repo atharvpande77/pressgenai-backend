@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 
 from src.news.utils import get_category_name
+from src.models import NewsCategory
 
 class Location(BaseModel):
     city: str | None = None
@@ -75,19 +76,46 @@ class ReqSchema(BaseModel):
 
 class CreationMode(str, Enum):
     MANUAL = "manual"
-    AI_ASSISTED = "ai_assisted"
+    AI = "ai"
+
+class CreateManualStorySchema(BaseModel):
+    title: str = Field(..., min_length=10, max_length=120)
+    # english_title: str = Field(..., min_length=10, max_length=120)
+    # context: str = Field(..., min_length=50, max_length=1200)
+    full_text: str = Field(..., min_length=300)
+    snippet: str = Field(..., min_length=50, max_length=400)
+    category: list[str] = Field(..., min_length=1, max_length=3)
+    tags: list[str] = Field(..., min_length=1, max_length=15)
+    images_keys: list[str] = Field(default_factory=list)
+    language: str = Field(default="English")
+    
+    @field_validator('category')
+    @classmethod
+    def validate_categories(cls, v):
+        valid_categories = [cat.value for cat in NewsCategory]
+        for cat in v:
+            if cat not in valid_categories:
+                raise ValueError(f'Invalid category: {cat}. Must be one of: {", ".join(valid_categories)}')
+        return v
 
 class CreateStorySchema(BaseModel):
-    title: Annotated[str, Field(max_length=75)] = ""
-    context: str = Field(..., min_length=50, max_length=1200)
-    options: GenerateOptionsSchema
+    # title: Annotated[str, Field(max_length=75)] = ""
+    context: str | None = Field(None, min_length=50, max_length=1200)
+    options: GenerateOptionsSchema | None = None
+    mode: CreationMode = Field(default=CreationMode.AI)
+    manual_story: Optional[CreateManualStorySchema] = None
     
-    @field_validator('title')
-    @classmethod
-    def validate_title(cls, v):
-        if v and len(v) < 10:
-            raise ValueError('Title must be at least 10 characters long when provided')
-        return v
+    @model_validator(mode='after')
+    def validate_mode_requirements(self):
+        if self.mode == CreationMode.AI:
+            if not self.context:
+                raise ValueError('context is required when mode is ai_assisted')
+            if not self.options:
+                raise ValueError('options is required when mode is ai_assisted')
+        if self.mode == CreationMode.MANUAL and not self.manual_story:
+            raise ValueError('manual_story is required when mode is manual')
+        return self
+
 
 class GenerateStorySchema(BaseModel):
     what: str = Field(..., min_length=10, max_length=200)
@@ -144,6 +172,23 @@ class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
+class CreateStoryResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: str
+    publish_status: str
+    mode: str
+    # AI mode fields
+    context: str | None = None
+    tone: str | None = None
+    style: str | None = None
+    language: str | None = None
+    word_length: str | None = None
+
+    # Manual mode fields
+    manual_story: GeneratedStoryResponseSchema | None = None
+
 
 # class UserStoryResponseSchema(CreateStorySchema):
 #     model_config = ConfigDict(from_attributes=True)
@@ -172,9 +217,10 @@ class UserStoryResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    title: str | None = None
+    # title: str | None = None
     context: str
     tone: str
+    mode: str | None = None
     style: str
     language: str
     word_length: str
@@ -196,6 +242,7 @@ class UserStoryItem(BaseModel):
     id: UUID
     title: Optional[str] = None
     context: Optional[str] = None
+    mode: str | None = None
     status: str = None
     publish_status: str = None
     initiated_at: Optional[datetime] = None

@@ -599,19 +599,31 @@ def get_story_status_dep(
     return status_lower
 
 
-def sluggify(title: str, max_words: int = 6) -> str:
+def sluggify(title: str, max_words: int = 6, transliterate: bool = False) -> str:
     """
     Convert a title to a URL-friendly slug, using the first n words.
     
     Args:
         title: The text to convert
         max_words: Maximum number of words to include in the slug (default 6)
+        transliterate: Whether to transliterate non-English text to ASCII (default False)
     
     Returns:
         A URL-safe slug using first n words
     """
-    # Normalize unicode (decompose accented characters)
-    text = unicodedata.normalize('NFKD', title)
+    try:
+        from unidecode import unidecode
+    except ImportError:
+        if transliterate:
+            # If unidecode is not available, fall back to basic normalization
+            transliterate = False
+            
+    # Transliterate if requested (and unidecode is available)
+    if transliterate:
+        text = unidecode(title)
+    else:
+        # Normalize unicode (decompose accented characters)
+        text = unicodedata.normalize('NFKD', title)
     
     # Convert to lowercase and get first n words
     words = text.lower().split()[:max_words]

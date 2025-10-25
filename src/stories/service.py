@@ -14,10 +14,10 @@ from uuid import UUID
 
 from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema
+from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema, CreateStoryResponseSchema, GeneratedStoryResponseSchema
 from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify
 from src.auth.dependencies import role_checker
-from src.aws.utils import get_full_s3_object_url
+from src.aws.utils import get_full_s3_object_url, get_images_with_urls
 from src.utils.query import get_article_images_json_query, get_profile_image_expression
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
@@ -439,61 +439,172 @@ async def get_story_by_id(session: AsyncSession, story_id: str):
 # User stories functions:
 async def create_user_story_db(session: AsyncSession, request: CreateStorySchema, curr_creator_id: str):
     try:
-        # Normalize and hash inputs
-        context = request.context.strip()
-        title = request.title.strip() if request.title else None
-        hashed_context = generate_hash(context)
-        hashed_title = generate_hash(title) if title else None
+        mode = request.mode
 
-        # Extract writing options
+        if mode == 'manual':
+            manual_story = request.manual_story
+
+            result = await session.execute(
+                insert(UserStories)
+                    .values(
+                        mode='manual',
+                        author_id=curr_creator_id,
+                        status=UserStoryStatus.GENERATED,
+                    )
+                    .returning(UserStories)
+            )
+            user_story = result.scalars().first()
+            if not user_story:
+                raise HTTPException(status_code=500, detail="Error while creating new story")
+            
+            slug = await generate_unique_slug(
+                session,
+                manual_story.title,
+                transliterate=True
+            )
+
+            result = await session.execute(
+                insert(GeneratedUserStories)
+                    .values(
+                        user_story_id=user_story.id,
+                        author_id=curr_creator_id,
+                        title=manual_story.title.strip(),
+                        # english_title=manual_story.english_title.strip(),
+                        slug=slug,
+                        snippet=manual_story.snippet.strip(),
+                        full_text=manual_story.full_text.strip(),
+                        category=manual_story.category,
+                        tags=manual_story.tags,
+                        images_keys=manual_story.images_keys,
+                    )
+                    .returning(GeneratedUserStories)
+            )
+            generated_user_story = result.scalars().first()
+
+            await session.commit()
+
+            return CreateStoryResponseSchema(
+                id=user_story.id,
+                status=user_story.status,
+                publish_status=user_story.publish_status,
+                mode=user_story.mode,
+                manual_story={
+                    "id": generated_user_story.id,
+                    "title": generated_user_story.title,
+                    "slug": generated_user_story.slug,
+                    "snippet": generated_user_story.snippet,
+                    "full_text": generated_user_story.full_text,
+                    "category": generated_user_story.category,
+                    "tags": generated_user_story.tags,
+                    "images_keys": get_images_with_urls(generated_user_story.images_keys)
+                }
+            )
+        
+        context = request.context.strip()
+        hashed_context = generate_hash(context)
+
         options = request.options
         word_length_range = get_word_length_range(options.word_length)
 
-        # Create story ORM object
-        new_story = UserStories(
-            title=title,
-            title_hash=hashed_title,
-            context=context,
-            context_hash=hashed_context,
-            tone=options.tone,
-            style=options.style,
-            language=options.language,
-            word_length=options.word_length,
-            word_length_range=str(word_length_range),
-            author_id=curr_creator_id
+        result = await session.execute(
+            insert(UserStories)
+                .values(
+                    author_id=curr_creator_id,
+                    mode='ai',
+                    context=request.context.strip(),
+                    context_hash=hashed_context,
+                    tone=options.tone,
+                    style=options.style,
+                    language=options.language,
+                    word_length=options.word_length,
+                    word_length_range=str(word_length_range),
+                )
+                .returning(UserStories)
         )
 
-        session.add(new_story)
+        user_story = result.scalars().first()
+        if not user_story:
+            raise HTTPException(status_code=500, detail="Error while creating new story")
+        
         await session.commit()
-        await session.refresh(new_story)
-
-        return {
-            "id": new_story.id,
-            "status": new_story.status,
-            "title": new_story.title,
-            "context": new_story.context,
-            "tone": new_story.tone,
-            "style": new_story.style,
-            "language": new_story.language,
-            "word_length": new_story.word_length,
-            "word_length_range": new_story.word_length_range,
-        }
-
+        print(user_story.__dict__)
+        return CreateStoryResponseSchema(
+            id=user_story.id,
+            status=user_story.status,
+            publish_status=user_story.publish_status,
+            mode=user_story.mode,
+            context=user_story.context,
+            tone=user_story.tone,
+            style=user_story.style,
+            language=user_story.language,
+            word_length=user_story.word_length,
+        )
     except IntegrityError:
         await session.rollback()
         traceback.print_exc()
         raise HTTPException(
             status_code=409,
-            detail="A story with the same context or title already exists.",
+            detail="A story with the same context already exists.",
         )
-    except Exception as e:
-        await session.rollback()
-        print("Error while creating new story")
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while creating the story.",
-        )
+    
+
+    # try:
+    #     # Normalize and hash inputs
+    #     context = request.context.strip()
+    #     title = request.title.strip() if request.title else None
+    #     hashed_context = generate_hash(context)
+    #     hashed_title = generate_hash(title) if title else None
+
+    #     # Extract writing options
+    #     options = request.options
+    #     word_length_range = get_word_length_range(options.word_length)
+
+    #     # Create story ORM object
+    #     new_story = UserStories(
+    #         title=title,
+    #         title_hash=hashed_title,
+    #         context=context,
+    #         context_hash=hashed_context,
+    #         tone=options.tone,
+    #         style=options.style,
+    #         language=options.language,
+    #         word_length=options.word_length,
+    #         word_length_range=str(word_length_range),
+    #         author_id=curr_creator_id
+    #     )
+
+    #     session.add(new_story)
+    #     await session.commit()
+    #     await session.refresh(new_story)
+
+    #     return {
+    #         "id": new_story.id,
+    #         "status": new_story.status,
+    #         "title": new_story.title,
+    #         "context": new_story.context,
+    #         "tone": new_story.tone,
+    #         "style": new_story.style,
+    #         "language": new_story.language,
+    #         "word_length": new_story.word_length,
+    #         "word_length_range": new_story.word_length_range,
+    #     }
+
+    # except IntegrityError:
+    #     await session.rollback()
+    #     traceback.print_exc()
+    #     raise HTTPException(
+    #         status_code=409,
+    #         detail="A story with the same context or title already exists.",
+    #     )
+    # except Exception as e:
+    #     await session.rollback()
+    #     print("Error while creating new story")
+    #     traceback.print_exc()
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail="An unexpected error occurred while creating the story.",
+    #     )
+
     
 async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
     try:
@@ -525,11 +636,14 @@ async def deactivate_old_questions(session: AsyncSession, user_story_id: str):
     await session.execute(stmt)
     await session.commit()
 
-async def generate_and_store_story_questions(session: AsyncSession, user_story_id: str, force_regenerate: bool = False):
-    user_story = await get_user_story_by_id(session, user_story_id)
-    if not user_story:
-        raise HTTPException(status_code=404, detail="User story not found")
-
+async def generate_and_store_story_questions(session: AsyncSession, user_story: UserStories, force_regenerate: bool = False):
+    # user_story = await get_user_story_by_id(session, user_story_id)
+    # if not user_story:
+    #     raise HTTPException(status_code=404, detail="User story not found")
+    if user_story.mode != 'ai':
+        raise HTTPException(status_code=400, detail="User story is not in AI mode")
+    
+    user_story_id = user_story.id
     existing_questions = await get_user_story_questions_db(session, user_story_id)
 
     if existing_questions and not force_regenerate:
@@ -646,7 +760,7 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         
         qna = await get_qna_by_user_story_id(session, user_story_db.id, isouter=True)
         # print(qna)
-        print(user_story_db.__dict__)
+        # print(user_story_db.__dict__)
         if user_story_db.status == UserStoryStatus.COLLECTING:
             return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna)
         
@@ -665,8 +779,8 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
 
 import secrets
 
-async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: int = 5):
-    title_slug = sluggify(title, max_words=10)
+async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: int = 5, transliterate: bool = False):
+    title_slug = sluggify(title, max_words=10, transliterate=transliterate)
     slug = title_slug
     for _ in range(max_attempts):
         suffix = secrets.token_hex(3)
@@ -784,7 +898,7 @@ async def update_user_story_status(session: AsyncSession, generated_article: Gen
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.slug, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
+        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.mode, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.slug, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
 
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))

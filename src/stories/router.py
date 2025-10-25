@@ -247,7 +247,7 @@ async def get_context_questions(
     user_story: UserStoryDep,
     force_regenerate: bool = False
 ):
-    return await generate_and_store_story_questions(session, user_story.id, force_regenerate)
+    return await generate_and_store_story_questions(session, user_story, force_regenerate)
 
 
 @router.post(
@@ -293,6 +293,8 @@ async def get_context_questions(
     },
 )
 async def submit_answer(request: AnswerSchema, session: Session, user_story: UserStoryDep):
+    if user_story.mode != 'ai':
+        raise HTTPException(status_code=400, detail="User story is not in AI mode")
     return await upsert_answer(session, user_story.id, request)
 
 
@@ -321,6 +323,8 @@ async def submit_answer(request: AnswerSchema, session: Session, user_story: Use
     },
 )
 async def generate_user_story(session: Session, user_story: UserStoryDep, force_regenerate: bool = False):
+    if user_story.mode != 'ai':
+        raise HTTPException(status_code=400, detail="User story is not in AI mode")
     return await get_generated_user_story(session, user_story, force_regenerate)
 
 
