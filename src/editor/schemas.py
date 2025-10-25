@@ -28,8 +28,8 @@ class EditArticleSchema(BaseModel):
     title: Annotated[str | None, Field(min_length=10, max_length=75)] = None
     snippet: Annotated[str | None, Field(min_length=100, max_length=2000)] = None
     full_text: Annotated[str | None, Field(min_length=500, max_length=50000)] = None
-    category: str | None = None
-    tags: list[str] | None = []
+    category: list[str] | None = None
+    tags: list[str] | None = None
     images_keys: list[str] | None = Field(default=None, max_length=3)
 
     @field_validator('category')
@@ -39,21 +39,16 @@ class EditArticleSchema(BaseModel):
             return v
 
         category_values = [category.value for category in NewsCategory]
-        category_lower = v.lower()
         
         # Check if the lowercase version matches any category (case-insensitive)
-        matching_category = next(
-            (cat for cat in category_values if cat.lower() == category_lower),
-            None
-        )
         
-        if matching_category is None:
+        if not all(cat.lower() in category_values for cat in v):
             raise ValueError(
                 f"Category must be one of: {', '.join(category_values)}"
             )
         
         # Return the properly cased version from the enum
-        return matching_category
+        return [category.value for category in NewsCategory if category.value.lower() in v]
     
 
 class RejectArticleSchema(BaseModel):
