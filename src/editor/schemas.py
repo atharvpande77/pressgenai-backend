@@ -26,8 +26,8 @@ class ArticleItem(CategorySerializerMixin, BaseModel):
 
 class EditArticleSchema(BaseModel):
     title: Annotated[str | None, Field(min_length=10, max_length=75)] = None
-    snippet: Annotated[str | None, Field(min_length=100, max_length=1000)] = None
-    full_text: Annotated[str | None, Field(min_length=1000, max_length=50000)] = None
+    snippet: Annotated[str | None, Field(min_length=100, max_length=2000)] = None
+    full_text: Annotated[str | None, Field(min_length=500, max_length=50000)] = None
     category: str | None = None
     tags: list[str] | None = []
     images_keys: list[str] | None = Field(default=None, max_length=3)

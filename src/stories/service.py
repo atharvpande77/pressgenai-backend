@@ -527,7 +527,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
             raise HTTPException(status_code=500, detail="Error while creating new story")
         
         await session.commit()
-        print(user_story.__dict__)
+        # print(user_story.__dict__)
         return CreateStoryResponseSchema(
             id=user_story.id,
             status=user_story.status,

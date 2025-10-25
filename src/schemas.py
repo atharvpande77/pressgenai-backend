@@ -257,8 +257,8 @@ class UserStoryItem(BaseModel):
 
 class EditGeneratedArticleSchema(BaseModel):
     title: str | None = Field(default=None, max_length=75)
-    snippet: str | None = Field(default=None, min_length=30, max_length=900)
-    full_text: str | None = Field(default=None, min_length=900, max_length=100000)
+    snippet: str | None = Field(default=None, min_length=30, max_length=2000)
+    full_text: str | None = Field(default=None, min_length=500, max_length=100000)
     # images_keys: list[str] | None = Field(default=None, max_length=3, min_length=1)
 
 class UploadedImageKeys(BaseModel):
