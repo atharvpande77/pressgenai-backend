@@ -86,8 +86,8 @@ class CreateManualStorySchema(BaseModel):
     snippet: str = Field(..., min_length=50, max_length=400)
     category: list[str] = Field(..., min_length=1, max_length=3)
     tags: list[str] = Field(..., min_length=1, max_length=15)
-    images_keys: list[str] = Field(default_factory=list)
-    language: str = Field(default="English")
+    # images_keys: list[str] = Field(default_factory=list)
+    language: str | None = Field(default="Marathi")
     
     @field_validator('category')
     @classmethod
@@ -115,8 +115,6 @@ class CreateStorySchema(BaseModel):
         if self.mode == CreationMode.MANUAL and not self.manual_story:
             raise ValueError('manual_story is required when mode is manual')
         return self
-
-
 class GenerateStorySchema(BaseModel):
     what: str = Field(..., min_length=10, max_length=200)
     where: str = Field(..., min_length=10, max_length=200)
@@ -218,12 +216,12 @@ class UserStoryResponseSchema(BaseModel):
 
     id: UUID
     # title: str | None = None
-    context: str
-    tone: str
+    context: str | None = None
+    tone: str | None = None
     mode: str | None = None
-    style: str
+    style: str | None = None
     language: str
-    word_length: str
+    word_length: str | None
     created_at: datetime
     updated_at: datetime = None
     status: str

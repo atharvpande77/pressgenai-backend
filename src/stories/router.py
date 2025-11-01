@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys
+from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys,CreateStoryResponseSchema
 from src.stories.service import add_stories_to_db, get_location_status, fetch_stories_from_db, add_location_record, update_location_timestamp, get_story_by_id, create_user_story_db, get_generated_user_story, upsert_answer, generate_and_store_story_questions, get_user_story_or_404, update_user_story_status, get_user_stories_db, get_complete_story_by_id, edit_generated_article_db
 from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story, get_all_news, get_story_status_dep
 from src.models import UserStories, Users, UserRoles, GeneratedUserStories
@@ -136,6 +136,7 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
 @router.post(
     "/user",
     status_code=status.HTTP_201_CREATED,
+    response_model=CreateStoryResponseSchema,
     summary="Create a new user story",
     description="""
     Create a new user story configuration.  
@@ -202,6 +203,7 @@ async def create_new_story(
     curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))]
 ):
     return await create_user_story_db(session, request, curr_creator.id)
+
 
 
 @router.get(

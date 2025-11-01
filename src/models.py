@@ -151,6 +151,7 @@ class GeneratedUserStories(Base):
     user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
+    title_hash = Column(String(64), nullable=False, index=True)
     english_title = Column(TEXT)
     slug = Column(TEXT, unique=True, index=True)
     snippet = Column(TEXT)
@@ -161,6 +162,10 @@ class GeneratedUserStories(Base):
     created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
     updated_at = Column(TIMESTAMP, onupdate=func.now()+time_diff_interval)
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('author_id', 'title_hash', name='uq_author_titlehash'),
+    )
 
     user_story = relationship("UserStories", back_populates="generated_stories", lazy='selectin')
     author = relationship("Authors", back_populates="generated_user_stories", lazy='selectin')

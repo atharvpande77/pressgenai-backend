@@ -449,6 +449,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                     .values(
                         mode='manual',
                         author_id=curr_creator_id,
+                        language=manual_story.language,
                         status=UserStoryStatus.GENERATED,
                     )
                     .returning(UserStories)
@@ -463,19 +464,23 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                 transliterate=True
             )
 
+            title = manual_story.title.strip()
+            title_hash = generate_hash(title)
+
             result = await session.execute(
                 insert(GeneratedUserStories)
                     .values(
                         user_story_id=user_story.id,
                         author_id=curr_creator_id,
-                        title=manual_story.title.strip(),
+                        title=title,
+                        title_hash=title_hash,
                         # english_title=manual_story.english_title.strip(),
                         slug=slug,
                         snippet=manual_story.snippet.strip(),
                         full_text=manual_story.full_text.strip(),
                         category=manual_story.category,
                         tags=manual_story.tags,
-                        images_keys=manual_story.images_keys,
+                        # images_keys=manual_story.images_keys,
                     )
                     .returning(GeneratedUserStories)
             )
@@ -488,6 +493,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                 status=user_story.status,
                 publish_status=user_story.publish_status,
                 mode=user_story.mode,
+                language=user_story.language,
                 manual_story={
                     "id": generated_user_story.id,
                     "title": generated_user_story.title,
@@ -539,13 +545,29 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
             language=user_story.language,
             word_length=user_story.word_length,
         )
-    except IntegrityError:
+    except IntegrityError as e:
         await session.rollback()
         traceback.print_exc()
-        raise HTTPException(
-            status_code=409,
-            detail="A story with the same context already exists.",
-        )
+
+        err_msg = str(e.orig).lower()
+
+        # Differentiate based on constraint names or known patterns
+        if 'uq_author_titlehash' in err_msg or 'title_hash' in err_msg:
+            raise HTTPException(
+                status_code=409,
+                detail="You have already created a story with the same title."
+            )
+        elif 'user_story_id' in err_msg or 'context' in err_msg:
+            raise HTTPException(
+                status_code=409,
+                detail="A story with the same context already exists."
+            )
+        else:
+            # Generic fallback
+            raise HTTPException(
+                status_code=400,
+                detail="An unexpected database constraint was violated."
+            )
     
 
     # try:
@@ -604,7 +626,6 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
     #         status_code=500,
     #         detail="An unexpected error occurred while creating the story.",
     #     )
-
     
 async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
     try:
@@ -797,11 +818,12 @@ async def store_generated_article(session: AsyncSession, generated_user_story: d
     # print(generated_user_story)
     # Use english_slug_title for slug if available and article is not in English
     title_for_slug = english_slug_title if english_slug_title else title
+    title_hash = generate_hash(title)
     slug = await generate_unique_slug(session, title_for_slug)
 
     # print(generated_user_story)
 
-    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, **generated_user_story).returning(
+    stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, title_hash=title_hash, **generated_user_story).returning(
         GeneratedUserStories.id,
         GeneratedUserStories.user_story_id,
         GeneratedUserStories.author_id,
