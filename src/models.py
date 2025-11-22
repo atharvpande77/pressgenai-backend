@@ -151,7 +151,7 @@ class GeneratedUserStories(Base):
     user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
-    title_hash = Column(String(64), nullable=False, index=True)
+    title_hash = Column(String(64), nullable=True, index=True)
     english_title = Column(TEXT)
     slug = Column(TEXT, unique=True, index=True)
     snippet = Column(TEXT)

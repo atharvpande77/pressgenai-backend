@@ -79,24 +79,24 @@ class CreationMode(str, Enum):
     AI = "ai"
 
 class CreateManualStorySchema(BaseModel):
-    title: str = Field(..., min_length=10, max_length=120)
+    title: str | None = Field(None, min_length=10, max_length=120)
     # english_title: str = Field(..., min_length=10, max_length=120)
     # context: str = Field(..., min_length=50, max_length=1200)
     full_text: str = Field(..., min_length=300)
-    snippet: str = Field(..., min_length=50, max_length=400)
-    category: list[str] = Field(..., min_length=1, max_length=3)
-    tags: list[str] = Field(..., min_length=1, max_length=15)
-    # images_keys: list[str] = Field(default_factory=list)
+    # snippet: str = Field(..., min_length=50, max_length=400)
+    # category: list[str] = Field(..., min_length=1, max_length=3)
+    # tags: list[str] = Field(..., min_length=1, max_length=15)
+    images_keys: list[str] = Field(default_factory=list)
     language: str | None = Field(default="Marathi")
     
-    @field_validator('category')
-    @classmethod
-    def validate_categories(cls, v):
-        valid_categories = [cat.value for cat in NewsCategory]
-        for cat in v:
-            if cat not in valid_categories:
-                raise ValueError(f'Invalid category: {cat}. Must be one of: {", ".join(valid_categories)}')
-        return v
+    # @field_validator('category')
+    # @classmethod
+    # def validate_categories(cls, v):
+    #     valid_categories = [cat.value for cat in NewsCategory]
+    #     for cat in v:
+    #         if cat not in valid_categories:
+    #             raise ValueError(f'Invalid category: {cat}. Must be one of: {", ".join(valid_categories)}')
+    #     return v
 
 class CreateStorySchema(BaseModel):
     # title: Annotated[str, Field(max_length=75)] = ""

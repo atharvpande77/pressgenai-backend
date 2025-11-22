@@ -137,65 +137,103 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
     "/user",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateStoryResponseSchema,
-    summary="Create a new user story",
+    summary="Create a new story (AI-assisted or manual writing mode)",
     description="""
-    Create a new user story configuration.  
+This endpoint initializes a new story draft for a creator.  
 
-    A story contains metadata such as:
-    - `title` (optional)
-    - `context` (required, describes the incident/news)
-    - `tone` (e.g., formal, casual, neutral)
-    - `style` (e.g., informative, narrative, breaking news)
-    - `language` (default: English)
-    - `word_length` (numeric target, e.g., 300, 800)
-    - `word_length_range` (automatically derived from length)  
+The behavior depends on the selected mode:
 
-    This is the first step before generating contextual questions or articles.
-    """,
-        responses={
-            201: {
-                "description": "User story successfully created",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "id": "8c8617b5-9210-4d94-8c52-3a77f813ed1e",
-                            "status": "created",
-                            "title": "Floods in Maharashtra",
-                            "context_preview": "Heavy rainfall has caused severe flooding in...",
-                            "tone": "formal",
-                            "style": "informative",
-                            "language": "English",
-                            "word_length": 500,
-                            "word_length_range": "500–800"
-                        }
+---
+
+### 🔹 AI-Assisted Mode (`mode="ai"`)
+
+The creator provides:
+- Context describing the incident or topic
+- Writing preferences (tone, style, language, length)
+
+The system stores the story and marks it as ready for:
+- Question generation (`GET /user/{id}/questions`)
+- Then full article generation (`GET /user/{id}/generate`)
+
+No article content is generated at this step.
+
+---
+
+### 🔹 Manual Mode (`mode="manual"`)
+
+The creator provides:
+- The complete article text
+- (Optional) title and images
+
+The system stores the content as-is. Metadata such as:
+- refined title (if needed)
+- snippet
+- tags
+- categories  
+
+will be generated later using the `GET /user/{id}/generate` endpoint.
+
+---
+
+### Workflow Result
+
+This endpoint returns the created story record and its current status.  
+No AI generation happens here.
+
+""",
+    responses={
+        201: {
+            "description": "Story successfully created",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "8c8617b5-9210-4d94-8c52-3a77f813ed1e",
+                        "mode": "ai",
+                        "status": "collecting",
+                        "publish_status": "draft",
+                        "context": "Heavy rainfall has caused severe flooding in...",
+                        "tone": "formal",
+                        "style": "informative",
+                        "language": "English",
+                        "word_length": 600
                     }
-                },
-            },
-            400: {
-                "description": "Bad request (invalid input format)",
-                "content": {
-                    "application/json": {
-                        "example": {"detail": "Request validation error: tone must be a string"}
-                    }
-                },
-            },
-            409: {
-                "description": "Conflict (duplicate context or title)",
-                "content": {
-                    "application/json": {
-                        "example": {"detail": "A story with the same context or title already exists."}
-                    }
-                },
-            },
-            500: {
-                "description": "Internal server error (unexpected failure)",
-                "content": {
-                    "application/json": {
-                        "example": {"detail": "An unexpected error occurred while creating the story."}
-                    }
-                },
+                }
             },
         },
+        400: {
+            "description": "Invalid input format or missing required fields",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Validation error: context is required in ai mode"}
+                }
+            },
+        },
+        409: {
+            "description": "Duplicate story detected",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "duplicate_title": {
+                            "summary": "Duplicate manual article",
+                            "value": {"detail": "You have already created a story with the same title."}
+                        },
+                        "duplicate_context": {
+                            "summary": "Duplicate AI context",
+                            "value": {"detail": "A story with the same context already exists."}
+                        }
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal error while saving the story",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "An unexpected server error occurred while creating the story."}
+                }
+            },
+        },
+    },
 )
 async def create_new_story(
     request: CreateStorySchema,
@@ -203,7 +241,6 @@ async def create_new_story(
     curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))]
 ):
     return await create_user_story_db(session, request, curr_creator.id)
-
 
 
 @router.get(
@@ -303,30 +340,78 @@ async def submit_answer(request: AnswerSchema, session: Session, user_story: Use
 @router.get(
     "/user/{user_story_id}/generate",
     response_model=GeneratedStoryResponseSchema,
-    summary="Generate an AI-written article",
+    summary="Generate or retrieve the final article (AI-assisted or manual mode)",
     description="""
-        Generate the final AI-written article based on:  
-        - User story metadata (tone, style, language, word count target)  
-        - Context provided  
-        - Answers to contextual questions  
+        This endpoint finalizes the user story into a publish-ready article.
 
-        - If `force_regenerate=false` (default), return the cached/generated article if available.  
-        - If `force_regenerate=true`, regenerate the article from scratch.  
+        ### **How It Works**
 
-        The response includes:  
-        - `title` (AI-generated if user did not provide one)  
-        - `snippet` (short 2–3 sentence HTML summary)  
-        - `full_text` (complete article in HTML format with structured headings and paragraphs).
+        The behavior depends on the story's mode:
+
+        ---
+
+        #### 🔹 AI-Assisted Mode (`mode="ai"`)
+
+        The system will:
+        - Use the user's context, writing preferences (tone, style, language, length)
+        - Use previously collected Q&A responses
+        - Generate a full article including:  
+        - Title (AI-generated if missing or weak)
+        - Snippet (short HTML summary)
+        - Complete formatted article body
+        - Category
+        - Tags
+
+        ---
+
+        #### 🔹 Manual Mode (`mode="manual"`)
+
+        The user already provided the full written content.  
+        The system will generate only the following metadata:
+
+        - Improved title (only if missing or inaccurate)
+        - Snippet (≤400 characters)
+        - Category (1–3 best matches)
+        - Tags (5–10 relevant keywords)
+
+        **The full text is never rewritten in manual mode.**
+
+        ---
+
+        ### Retrieval and Regeneration Rules
+
+        - If an article has already been generated and `force_regenerate=false`, the stored version is returned.
+        - If `force_regenerate=true`, the article will be regenerated (content for AI mode or metadata for manual mode) and overwritten.
+
+        ---
+
+        ### Example Use Cases
+
+        - ✔️ Creators reviewing drafts
+        - ✔️ Editors regenerating metadata
+        - ✔️ Article preview before submission
+
         """,
     responses={
-        404: {"description": "QnA not found for the given user story"},
-        502: {"description": "Error during AI generation or JSON parsing"},
-        500: {"description": "Database error or unexpected server error"},
+        200: {"description": "Successfully generated or retrieved article"},
+        400: {"description": "Invalid story mode"},
+        404: {
+            "description": "Required data missing (e.g., QnA missing for AI mode)"
+        },
+        409: {
+            "description": "Duplicate article detected (slug/title conflict)"
+        },
+        502: {
+            "description": "AI service error or model response could not be parsed"
+        },
+        500: {
+            "description": "Database failure or unexpected internal server error"
+        },
     },
 )
 async def generate_user_story(session: Session, user_story: UserStoryDep, force_regenerate: bool = False):
-    if user_story.mode != 'ai':
-        raise HTTPException(status_code=400, detail="User story is not in AI mode")
+    # if user_story.mode != 'ai':
+    #     raise HTTPException(status_code=400, detail="User story is not in AI mode")
     return await get_generated_user_story(session, user_story, force_regenerate)
 
 
@@ -352,8 +437,3 @@ async def change_story_status_to_submitted(
     session: Session, generated_article: GeneratedArticleDep, request: UploadedImageKeys
 ):
     return await update_user_story_status(session, generated_article, request)
-
-
-
-
-

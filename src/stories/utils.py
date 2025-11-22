@@ -493,6 +493,8 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
     # del qna['question_id']
     # del qna['answer_id']
     # del qna['question_type']
+    today = (datetime.now()+timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+    
     PROMPT = f"""
         You are an AI news writing assistant. Generate a professional-grade news article based on the following inputs:
 
@@ -503,13 +505,16 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         - Word Count Target: {f"{user_story.word_length} {str(user_story.word_length_range)}" if user_story.word_length else "short (300-500)"}  
 
         Story Context:
-        "{user_story.context or ""}"  
+        "{user_story.context or ""}"
 
         Optional Title (if provided):
         "{existing_title or ""}"  
 
         Questions and Answers:
         {qna}
+        
+        Here is today's date for your reference:
+        {today}
 
         ---
 
@@ -573,6 +578,72 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         #     "full_text": ""
         # }
         return None
+    
+async def generate_manual_story_metadata(full_text: str, title: str | None = None) -> dict:
+    try:
+        PROMPT = f"""
+            You are an AI news metadata generator. Your job is to analyze the article body provided below
+            and generate accurate metadata that will be used for publishing a professional-grade news article.
+
+            Your tasks:
+
+            1. Generate 1–3 categories that best match the content. Choose ONLY from this fixed list:
+            [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]
+
+            2. Generate 5–10 meaningful tags (keywords). Rules:
+            - Tags must be concise and directly related to the content.
+            - Tags must be in the SAME LANGUAGE as the article body.
+            - Tags must NOT contain hashtags.
+
+            3. Generate a refined or alternative title ONLY IF:
+            - The user provided no title, OR
+            - The provided title is irrelevant, inaccurate, or does not reflect the article content.
+            If the user’s title is relevant, return it as is.
+            - Must be in the SAME LANGUAGE as the article body.
+            
+            4. Generate an english title
+            - If the article is not in English, provide an exact translation (not summarization) of the original title into English, keeping it under 12 words. If the article is in English, leave this empty.
+
+            5. Generate a short snippet (summary) not exceeding 400 characters.
+            - This should be a tight, factual summary of the article.
+            - Must NOT contain HTML. Plain text only.
+            - Must be in the SAME LANGUAGE as the article body.
+
+            OUTPUT RULES:
+            - The output MUST be valid JSON.
+            - No explanations. No extra text.
+
+            Final Output Format:
+            {{
+            "title": "...",
+            "english_title": "...",
+            "snippet": "...",
+            "category": ["...", "..."],
+            "tags": ["...", "...", "..."]
+            }}
+
+            ---
+
+            User Provided Title:
+            "{title or ""}"
+
+            Article Body:
+            \"\"\"{full_text}\"\"\"
+        """
+
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",  # or your preferred model
+            messages=[
+                {"role": "system", "content": "You are a professional news article writer."},
+                {"role": "user", "content": PROMPT}
+            ],
+            temperature=0.5
+        )
+
+        raw_content = response.choices[0].message.content.strip()
+        return json.loads(raw_content)
+    except Exception as e:
+        print(f"Error generating user story: {e}")
 
 def get_word_length_range(length_option: str):
     LENGTH_RANGES = {
