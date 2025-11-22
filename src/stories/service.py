@@ -991,10 +991,10 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
                 detail="Cannot edit other creator's articles"
             )
         
-        if article_db.user_story.status not in [UserStoryStatus.COLLECTING, UserStoryStatus.GENERATED]:
+        if article_db.user_story.publish_status == UserStoryPublishStatus.PUBLISHED:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                detail="cannot edit a submitted article"
+                detail="cannot edit a published article"
             )
 
         updates_dict = updates.model_dump(exclude_none=True)
