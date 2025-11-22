@@ -139,48 +139,48 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
     response_model=CreateStoryResponseSchema,
     summary="Create a new story (AI-assisted or manual writing mode)",
     description="""
-This endpoint initializes a new story draft for a creator.  
+        This endpoint initializes a new story draft for a creator.  
 
-The behavior depends on the selected mode:
+        The behavior depends on the selected mode:
 
----
+        ---
 
-### 🔹 AI-Assisted Mode (`mode="ai"`)
+        ### 🔹 AI-Assisted Mode (`mode="ai"`)
 
-The creator provides:
-- Context describing the incident or topic
-- Writing preferences (tone, style, language, length)
+        The creator provides:
+        - Context describing the incident or topic
+        - Writing preferences (tone, style, language, length)
 
-The system stores the story and marks it as ready for:
-- Question generation (`GET /user/{id}/questions`)
-- Then full article generation (`GET /user/{id}/generate`)
+        The system stores the story and marks it as ready for:
+        - Question generation (`GET /user/{id}/questions`)
+        - Then full article generation (`GET /user/{id}/generate`)
 
-No article content is generated at this step.
+        No article content is generated at this step.
 
----
+        ---
 
-### 🔹 Manual Mode (`mode="manual"`)
+        ### 🔹 Manual Mode (`mode="manual"`)
 
-The creator provides:
-- The complete article text
-- (Optional) title and images
+        The creator provides:
+        - The complete article text
+        - (Optional) title and images
 
-The system stores the content as-is. Metadata such as:
-- refined title (if needed)
-- snippet
-- tags
-- categories  
+        The system stores the content as-is. Metadata such as:
+        - refined title (if needed)
+        - snippet
+        - tags
+        - categories  
 
-will be generated later using the `GET /user/{id}/generate` endpoint.
+        will be generated later using the `GET /user/{id}/generate` endpoint.
 
----
+        ---
 
-### Workflow Result
+        ### Workflow Result
 
-This endpoint returns the created story record and its current status.  
-No AI generation happens here.
+        This endpoint returns the created story record and its current status.  
+        No AI generation happens here.
 
-""",
+        """,
     responses={
         201: {
             "description": "Story successfully created",
@@ -235,7 +235,7 @@ No AI generation happens here.
         },
     },
 )
-async def create_new_story(
+async def initiate_new_story(
     request: CreateStorySchema,
     session: Annotated[AsyncSession, Depends(get_session)],
     curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))]

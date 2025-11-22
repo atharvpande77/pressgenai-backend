@@ -741,7 +741,9 @@ async def get_qna_by_user_story_id(session: AsyncSession, user_story_id: str, is
         UserStoriesQuestions.user_story_id == user_story_id,
         UserStoriesQuestions.is_active == True
     ))
-    qna = result.scalars().all()
+    qna = result.all()
+    
+    print(f"QnA: {qna}")
     if qna:
         return [{"question": row.question, "answer": row.answer} for row in qna]
     return []
@@ -807,8 +809,8 @@ async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: 
 async def store_generated_article(session: AsyncSession, generated: dict, user_story_id: str, creator_id: str):
     """
         Behavior:
-        If AI_ASSISTED, stores the generated article in the DB.
-        IF MANUAL, updates the article in GeneratedUserStories table with metadata (title, categories, tags, etc.).
+        If mode=AI_ASSISTED, stores the generated article in the DB.
+        IF mode=MANUAL, updates the article in GeneratedUserStories table with metadata (title, categories, tags, etc.).
     """
     title = generated.get('title')
     english_slug_title = generated.get('english_title') 
@@ -823,9 +825,9 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
             .where(GeneratedUserStories.user_story_id == user_story_id)
     )
     existing = result.scalars().first()
-    print(f"Existing generated story full text: {existing.full_text}")
 
     if existing:
+        print(f"Existing generated story full text: {existing.full_text}")
         result = await session.execute(
             update(GeneratedUserStories)
                 .where(GeneratedUserStories.user_story_id == user_story_id)
@@ -855,7 +857,8 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
             .values(status=UserStoryStatus.GENERATED)
     )   
     await session.commit()
-    return result.scalars().first()
+    article = result.scalars().first()
+    return article
     
     # stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, title_hash=title_hash, **generated).returning(
     #     GeneratedUserStories.id,
@@ -882,10 +885,10 @@ async def get_generated_user_story(
     creator_id = user_story.author_id
     mode = user_story.mode
     
-    print(f"Generating user story {user_story_id} in mode {mode}")
+    # print(f"Generating user story {user_story_id} in mode {mode}")
 
     existing_article = await get_generated_story_db(session, user_story_id)
-    print(f"Existing generated story: {existing_article}")
+    # print(f"Existing generated story: {existing_article}")
     
     if existing_article and user_story.status == UserStoryStatus.GENERATED and not force_regenerate:
         return existing_article
@@ -911,7 +914,7 @@ async def get_generated_user_story(
         
         generated = await generate_manual_story_metadata(full_text, title)
         
-        print(f"Generated manual story: {generated}")
+        # print(f"Generated manual story: {generated}")
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid story mode")
     
@@ -973,9 +976,6 @@ async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story
         err_msg = f"Database error while fetching stories with status {story_status}: {str(dbe)}"
         print(err_msg)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=err_msg)
-
-
-
 
 
 async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str, generated_article_id: str, updates: EditGeneratedArticleSchema):
