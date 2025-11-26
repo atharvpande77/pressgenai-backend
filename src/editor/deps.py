@@ -12,12 +12,14 @@ from src.models import Users, UserRoles, GeneratedUserStories
 from src.auth.dependencies import role_checker
 
 
+publish_statuses = [val for val in UserStoryPublishStatus.__members__.values()]
+
 def get_editor_story_status_dep(
     editor_status: Annotated[str, Path(description="Editor story status filter")]
-) -> Literal[UserStoryPublishStatus.PENDING, UserStoryPublishStatus.PUBLISHED, UserStoryPublishStatus.REJECTED]:
+) -> Literal[UserStoryPublishStatus.PENDING, UserStoryPublishStatus.PUBLISHED, UserStoryPublishStatus.WORK_IN_PROGRESS, UserStoryPublishStatus.REJECTED]:
     """Convert status to lowercase and validate."""
     status_lower = editor_status.lower().strip()
-    valid_statuses = [UserStoryPublishStatus.PENDING, UserStoryPublishStatus.PUBLISHED, UserStoryPublishStatus.REJECTED]
+    valid_statuses = publish_statuses
     
     if status_lower not in valid_statuses:
         raise HTTPException(
@@ -38,8 +40,8 @@ async def get_article_or_404(article_id: Annotated[UUID, Path(...)], session: An
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error fetching article for id {article_id}")
 
 
-async def get_article_and_assign_editor(
-    session: Annotated[AsyncSession, Depends(get_session)],
+async def get_verified_article(
+    # session: Annotated[AsyncSession, Depends(get_session)],
     article_db: Annotated[GeneratedUserStories, Depends(get_article_or_404)],
     curr_editor: Annotated[Users, Depends(role_checker(UserRoles.EDITOR, UserRoles.ADMIN))]
 ):
@@ -49,19 +51,19 @@ async def get_article_and_assign_editor(
             detail="Article already under review by another editor"
         )
     
-    if article_db.user_story.publish_status == UserStoryPublishStatus.PUBLISHED:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail="cannot edit a published article"
-        )
+    # if article_db.user_story.publish_status == UserStoryPublishStatus.PUBLISHED:
+    #     raise HTTPException(
+    #         status.HTTP_403_FORBIDDEN,
+    #         detail="cannot edit a published article"
+    #     )
     
-    result = await session.execute(
-        update(GeneratedUserStories)
-            .values(editor_id=curr_editor.id)
-            .where(GeneratedUserStories.id == article_db.id)
-            .returning(GeneratedUserStories)
-    )
-    updated_article = result.scalars().first()
-    await session.commit()
+    # result = await session.execute(
+    #     update(GeneratedUserStories)
+    #         .values(editor_id=curr_editor.id)
+    #         .where(GeneratedUserStories.id == article_db.id)
+    #         .returning(GeneratedUserStories)
+    # )
+    # updated_article = result.scalars().first()
+    # await session.commit()
     # article_db.editor_id = curr_editor.id
     return article_db

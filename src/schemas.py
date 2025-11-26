@@ -169,6 +169,7 @@ class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     images: list[ArticleImageResponse] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
     
 class CreateStoryResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)

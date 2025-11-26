@@ -24,6 +24,13 @@ async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+    if not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is banned/not approved yet.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if not verify_pw(form_data.password, user.password):
         raise HTTPException(

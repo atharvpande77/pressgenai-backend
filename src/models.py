@@ -59,8 +59,9 @@ class UserStoryStatus(str, Enum):
 # THis is for editor article status
 class UserStoryPublishStatus(str, Enum):
     # DRAFT = "draft"
-    # GENERATED = "generated"\
+    # GENERATED = "generated"
     PENDING = "pending"
+    WORK_IN_PROGRESS = "wip"
     PUBLISHED = "published"
     REJECTED = "rejected"
 
@@ -160,6 +161,7 @@ class GeneratedUserStories(Base):
     tags = Column("tags", ARRAY(String), default=list)
     images_keys = Column("images_keys", ARRAY(String), default=list)
     created_at = Column(TIMESTAMP, server_default=func.now()+time_diff_interval)
+    published_at = Column(TIMESTAMP)
     updated_at = Column(TIMESTAMP, onupdate=func.now()+time_diff_interval)
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
 
@@ -197,6 +199,8 @@ class Users(Base):
     )
     profile_image_key = Column(String(200))
     active = Column(BOOLEAN, default=True)
+    approved_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
+    approved_at = Column(TIMESTAMP, nullable=True)
     author_profile = relationship("Authors", back_populates="user", lazy="selectin", uselist=False, cascade="delete")
 
 

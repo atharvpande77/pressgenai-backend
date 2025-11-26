@@ -65,7 +65,8 @@ async def create_author_db(
             password=hashed_password,
             phone=phone,
             profile_image_key=key or None,
-            role=UserRoles.CREATOR
+            role=UserRoles.CREATOR,
+            active=False
         ).returning(
             Users.id,
             Users.first_name,

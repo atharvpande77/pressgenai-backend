@@ -771,6 +771,7 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         if user_story_db.author_id != curr_creator_id:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
+                detail=f"User story {user_story_id} does not belong to the creator {curr_creator_id}"
             )
         
         qna = await get_qna_by_user_story_id(session, user_story_db.id, isouter=True)
