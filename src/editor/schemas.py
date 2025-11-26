@@ -107,3 +107,11 @@ class CreatorItem(BaseModel):
     creator_profile_image: str | None = None
     published_count: int | None = None
     active: bool | None = None
+    
+    
+class CreateCreatorSchema(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    password: str
+    active: bool = True

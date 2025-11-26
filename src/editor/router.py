@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from src.config.database import get_session
-from src.editor.service import get_articles_by_publish_status, edit_article_db, publish_article_db, reject_article_db, get_all_creators_db, approve_or_reject_creator_db, reset_creator_password_db, get_creator_by_id
+from src.editor.service import get_articles_by_publish_status, edit_article_db, publish_article_db, reject_article_db, get_all_creators_db, approve_or_reject_creator_db, reset_creator_password_db, get_creator_by_id, add_creator_db
 from src.editor.deps import get_editor_story_status_dep, get_article_or_404, get_verified_article
-from src.editor.schemas import ArticleItem, EditArticleSchema, RejectArticleSchema, RejectedEndpointResponse, ArticleFullItem, UpdateCreatorPassword, CreatorItem
+from src.editor.schemas import ArticleItem, EditArticleSchema, RejectArticleSchema, RejectedEndpointResponse, ArticleFullItem, UpdateCreatorPassword, CreatorItem, CreateCreatorSchema
 from src.models import GeneratedUserStories, Users, UserRoles
 from src.auth.dependencies import role_checker
 from src.auth.utils import verify_pw
@@ -73,6 +73,10 @@ async def get_all_creators(session: Annotated[AsyncSession, Depends(get_session)
 @router.get('/creators/{creator_id}')
 async def get_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, creator_id: UUID):
     return await get_creator_by_id(session, creator_id)
+
+@router.post('/creators')
+async def create_new_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, payload: CreateCreatorSchema):
+    return await add_creator_db(session, curr_editor.id, payload)
     
 @router.patch('/creators/{creator_id}/approve')
 async def approve_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, creator_id: UUID, approve: bool):

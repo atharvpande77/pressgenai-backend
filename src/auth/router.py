@@ -25,7 +25,7 @@ async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    if not user.active:
+    if not bool(user.active):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is banned/not approved yet.",

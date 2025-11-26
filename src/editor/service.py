@@ -2,7 +2,7 @@ from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserS
 from src.editor.schemas import EditArticleSchema
 from src.utils.query import get_article_images_json_query, get_profile_image_expression, get_creator_profile_image
 from src.creators.utils import hash_password
-from src.editor.schemas import CreatorItem
+from src.editor.schemas import CreatorItem, CreateCreatorSchema
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError
@@ -275,3 +275,36 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
         published_count=published_count,
     )
     
+from src.creators.service import generate_unique_username
+
+async def add_creator_db(session: AsyncSession, payload: CreateCreatorSchema):
+    unique_username = await generate_unique_username(session, payload.email)
+    hashed_password = hash_password(payload.password)
+    
+    result = await session.execute(
+        insert(Users)
+            .values(
+                first_name=payload.first_name,
+                last_name=payload.last_name,
+                email=payload.email,
+                usernmame=unique_username,
+                role=UserRoles.CREATOR,
+                password=hashed_password,
+                active=payload.active,
+            )
+            .returning(Users)
+    )
+    await session.commit()
+    
+    creator = result.first()
+    return CreatorItem(
+        id=creator.id,
+        first_name=creator.first_name,
+        last_name=creator.last_name,
+        email=creator.email,
+        username=creator.username,
+        active=creator.active,
+        # bio=creator.bio,
+        # profile_image_url=creator[7],  # get_creator_profile_image() result
+        # published_count=0,
+    )
