@@ -99,6 +99,7 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
     await set_publish_status(
         session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
     )
+    await session.commit()
     
     return article_updated
     
