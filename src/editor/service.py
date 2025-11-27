@@ -8,10 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy import select, update, or_, func, literal, case
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import aliased
 from fastapi import HTTPException, status
 import traceback
 from uuid import UUID
 from datetime import datetime, timedelta
+
+
+Creators = aliased(Users)
+Editors = aliased(Users)
 
 async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, curr_editor_id: UUID, limit: int = 10, offset: int = 0):
     try:
@@ -37,13 +42,17 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
                     GeneratedUserStories.updated_at,
                     GeneratedUserStories.published_at,
                     # get_article_images_json_query(),
-                    Users.username.label('creator_username'),
-                    Users.first_name.label('creator_first_name'),
-                    Users.last_name.label('creator_last_name'),
+                    Creators.username.label('creator_username'),
+                    Creators.first_name.label('creator_first_name'),
+                    Creators.last_name.label('creator_last_name'),
+                    Editors.first_name.label('editor_first_name'),
+                    Editors.last_name.label('editor_last_name'),
+                    Editors.username.label('editor_username')
                     # get_profile_image_expression(label_name="creator_profile_image")
                 )
                     .join(UserStories, UserStories.id == GeneratedUserStories.user_story_id)
-                    .join(Users, Users.id == GeneratedUserStories.author_id)
+                    .join(Creators, Creators.id == GeneratedUserStories.author_id)
+                    .join(Editors, Editors.id == GeneratedUserStories.editor_id, isouter=True)
                     .filter(
                         UserStories.publish_status == editor_status,
                         UserStories.status == UserStoryStatus.SUBMITTED,

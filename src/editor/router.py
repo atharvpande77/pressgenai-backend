@@ -52,7 +52,6 @@ async def publish_article(session: Session, article: VerifyArticleDep, curr_edit
     """
         For now, only changes the publish status to published 
     """
-
     return await publish_article_db(session, article, curr_editor.id)
 
 @router.post('/articles/{article_id}/reject', response_model=RejectedEndpointResponse)

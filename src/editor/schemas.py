@@ -27,6 +27,9 @@ class ArticleItem(CategorySerializerMixin, BaseModel):
     creator_username: str | None = None
     creator_first_name: str
     creator_last_name: str | None = None
+    editor_username: str | None = None
+    editor_first_name: str | None = None
+    editor_last_name: str | None = None
     # creator_profile_image: str | None = None
     
 
