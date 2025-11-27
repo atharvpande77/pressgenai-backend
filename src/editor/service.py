@@ -272,7 +272,7 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
         username=creator.username,
         active=creator.active,
         bio=creator.bio,
-        profile_image_url=creator[7],  # get_creator_profile_image() result
+        creator_profile_image=creator[7],  # get_creator_profile_image() result
         published_count=published_count,
     )
     
