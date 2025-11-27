@@ -195,17 +195,18 @@ async def get_all_creators_db(
             get_creator_profile_image(),
             published_articles_count
         )
-            .join(Authors, Users.id == Authors.id)
+            .join(Authors, Users.id == Authors.id, isouter=True)
             .where(Users.role == UserRoles.CREATOR)
             .limit(limit)
             .offset(offset)
+            .order_by(Users.added_on.desc())
     )
     creators = result.all()
     print(creators)
     return creators
 
 async def approve_or_reject_creator_db(session: AsyncSession,  curr_editor_id: UUID, creator_id: UUID, approve: bool):
-    values = {"active": approve, "approved_by": curr_editor_id} if approve else {"active": False}
+    values = {"active": approve, "approved_by": curr_editor_id, "approved_at": datetime.now()+timedelta(hours=5, minutes=30)} if approve else {"active": False}
     result = await session.execute(
         update(Users)
             .where(Users.id == creator_id)
@@ -242,7 +243,7 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
             Authors.bio,
             get_creator_profile_image()
         )
-            .join(Authors, Users.id == Authors.id)
+            .join(Authors, Users.id == Authors.id, isouter=True)
             .where(Users.id == creator_id)
             .limit(1)
     )
@@ -278,7 +279,7 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
     
 from src.creators.service import generate_unique_username
 
-async def add_creator_db(session: AsyncSession, payload: CreateCreatorSchema):
+async def add_creator_db(session: AsyncSession, curr_editor_id: UUID, payload: CreateCreatorSchema):
     unique_username = await generate_unique_username(session, payload.email)
     hashed_password = hash_password(payload.password)
     
@@ -293,6 +294,8 @@ async def add_creator_db(session: AsyncSession, payload: CreateCreatorSchema):
                     role=UserRoles.CREATOR,
                     password=hashed_password,
                     active=payload.active,
+                    approved_by=curr_editor_id if payload.active else None,
+                    approved_at=datetime.now()+timedelta(hours=5, minutes=30) if payload.active else None
                 )
                 .returning(Users)
         )

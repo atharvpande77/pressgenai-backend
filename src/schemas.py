@@ -156,6 +156,11 @@ class CategorySerializerMixin:
     def serialize_category(self, categories: list[str] | None) -> list[dict[str, str]]:
         return serialize_categories(categories)
 
+class ImageSerializerMixin:
+    """Mixin for image serialization"""
+    
+    ...
+
 class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -139,10 +139,21 @@ async def update_creator_password(session: AsyncSession, curr_creator: Users, ol
             detail=msg
         )
     
-async def update_creator_profile_db(session: AsyncSession, s3, curr_creator: Users, first_name: str | None = None, last_name: str | None = None, bio: str | None = None, profile_image: UploadFile | None = None):
+async def update_creator_profile_db(
+    session: AsyncSession,
+    s3,
+    curr_creator: Users,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    bio: str | None = None,
+    profile_image: UploadFile | None = None
+):
+    # ---------- Update Users table ----------
     user_updates = {}
+    
     if first_name is not None:
         user_updates['first_name'] = first_name
+
     if last_name is not None:
         user_updates['last_name'] = last_name
 
@@ -159,28 +170,53 @@ async def update_creator_profile_db(session: AsyncSession, s3, curr_creator: Use
     if user_updates:
         await session.execute(
             update(Users)
-                .where(Users.id == curr_creator.id)
-                .values(user_updates)
+            .where(Users.id == curr_creator.id)
+            .values(user_updates)
         )
 
+    # ---------- Handle Authors table (lazy create/update) ----------
     if bio is not None:
-        await session.execute(
-            update(Authors)
-                .where(Authors.id == curr_creator.id)
-                .values(bio=bio)
+        # Check if Authors record exists
+        result = await session.execute(
+            select(Authors).where(Authors.user_id == curr_creator.id)
         )
-    
+        author_row = result.scalar_one_or_none()
+
+        if author_row is None:
+            # Create new author row
+            new_author = Authors(
+                user_id=curr_creator.id,
+                bio=bio
+            )
+            session.add(new_author)
+        else:
+            # Update existing author bio
+            await session.execute(
+                update(Authors)
+                .where(Authors.user_id == curr_creator.id)
+                .values(bio=bio)
+            )
+
+    # ---------- Commit everything ----------
     await session.commit()
     await session.refresh(curr_creator)
+
+    # Fetch updated author profile
+    result = await session.execute(
+        select(Authors).where(Authors.user_id == curr_creator.id)
+    )
+    author_profile = result.scalar_one_or_none()
+
     return AuthorResponseSchema(
         id=curr_creator.id,
         first_name=curr_creator.first_name,
         last_name=curr_creator.last_name,
         email=curr_creator.email,
         username=curr_creator.username,
-        bio=curr_creator.author_profile.bio,
+        bio=author_profile.bio if author_profile else None,
         profile_image=get_full_s3_object_url(curr_creator.profile_image_key)
     )
+
 
     
     

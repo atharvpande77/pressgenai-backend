@@ -199,6 +199,7 @@ class Users(Base):
     )
     profile_image_key = Column(String(200))
     active = Column(BOOLEAN, default=True)
+    added_on = Column(TIMESTAMP, nullable=False, server_default=func.now())
     approved_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
     approved_at = Column(TIMESTAMP, nullable=True)
     author_profile = relationship("Authors", back_populates="user", lazy="selectin", uselist=False, cascade="delete")

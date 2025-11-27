@@ -45,6 +45,7 @@ async def create_author(
 
 @router.get('/', response_model=AuthorResponseSchema)
 async def get_creator_profile(curr_author: curr_author_dep):
+    author_profile = curr_author.author_profile
     return AuthorResponseSchema(
         id=curr_author.id,
         first_name=curr_author.first_name,
@@ -52,7 +53,7 @@ async def get_creator_profile(curr_author: curr_author_dep):
         email=curr_author.email,
         phone=curr_author.phone,
         username=curr_author.username,
-        bio=curr_author.author_profile.bio,
+        bio=getattr(author_profile, 'bio', None),
         profile_image=get_full_s3_object_url(curr_author.profile_image_key) if curr_author.profile_image_key else None
     )
 

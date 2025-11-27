@@ -76,7 +76,7 @@ async def get_creator(session: Annotated[AsyncSession, Depends(get_session)], cu
 
 @router.post('/creators')
 async def create_new_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, payload: CreateCreatorSchema):
-    return await add_creator_db(session, payload)
+    return await add_creator_db(session, curr_editor.id, payload)
     
 @router.patch('/creators/{creator_id}/approve')
 async def approve_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, creator_id: UUID, approve: bool):
