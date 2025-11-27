@@ -5,7 +5,7 @@ from src.creators.utils import hash_password
 from src.editor.schemas import CreatorItem, CreateCreatorSchema
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import DatabaseError
+from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy import select, update, or_, func, literal, case
 from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException, status
@@ -282,30 +282,39 @@ async def add_creator_db(session: AsyncSession, payload: CreateCreatorSchema):
     unique_username = await generate_unique_username(session, payload.email)
     hashed_password = hash_password(payload.password)
     
-    result = await session.execute(
-        insert(Users)
-            .values(
-                first_name=payload.first_name,
-                last_name=payload.last_name,
-                email=payload.email,
-                usernmame=unique_username,
-                role=UserRoles.CREATOR,
-                password=hashed_password,
-                active=payload.active,
-            )
-            .returning(Users)
-    )
-    await session.commit()
-    
-    creator = result.first()
-    return CreatorItem(
-        id=creator.id,
-        first_name=creator.first_name,
-        last_name=creator.last_name,
-        email=creator.email,
-        username=creator.username,
-        active=creator.active,
-        # bio=creator.bio,
-        # profile_image_url=creator[7],  # get_creator_profile_image() result
-        # published_count=0,
-    )
+    try:
+        result = await session.execute(
+            insert(Users)
+                .values(
+                    first_name=payload.first_name,
+                    last_name=payload.last_name,
+                    email=payload.email,
+                    username=unique_username,
+                    role=UserRoles.CREATOR,
+                    password=hashed_password,
+                    active=payload.active,
+                )
+                .returning(Users)
+        )
+        await session.commit()
+        
+        creator = result.first()[0]
+        print(creator)
+        
+        return CreatorItem(
+            id=creator.id,
+            first_name=creator.first_name,
+            last_name=creator.last_name,
+            email=creator.email,
+            username=creator.username,
+            active=creator.active,
+            # bio=creator.bio,
+            # profile_image_url=creator[7],  # get_creator_profile_image() result
+            # published_count=0,
+        )
+    except IntegrityError as e:
+        print(f"Error while adding new creator ({payload.email}): {e}")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="A creator with this email already exists"
+        )
