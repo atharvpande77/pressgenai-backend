@@ -3,6 +3,7 @@ from src.editor.schemas import EditArticleSchema
 from src.utils.query import get_article_images_json_query, get_profile_image_expression, get_creator_profile_image
 from src.creators.utils import hash_password
 from src.editor.schemas import CreatorItem, CreateCreatorSchema
+from src.aws.utils import get_images_with_urls
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError, IntegrityError
@@ -109,6 +110,8 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
         session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
     )
     await session.commit()
+    
+    article_updated.images = get_images_with_urls(article_updated.images_keys)
     
     return article_updated
     

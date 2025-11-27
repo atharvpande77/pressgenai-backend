@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict, field_serializer
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict, field_serializer, computed_field
 from typing import Literal, Optional, Annotated
 from uuid import UUID
 from datetime import datetime
@@ -156,11 +156,13 @@ class CategorySerializerMixin:
     def serialize_category(self, categories: list[str] | None) -> list[dict[str, str]]:
         return serialize_categories(categories)
 
-class ImageSerializerMixin:
-    """Mixin for image serialization"""
+# class ImageSerializerMixin:
+#     """Mixin for image serialization"""
     
-    ...
-
+#     @field_serializer('images_keys')
+#     def serialize_images_keys(self, images_keys: list[str] | None) -> list[dict[str, str]]:
+#         return [{"key": key, "url": get_full_s3_object_url(key)} for key in images_keys]
+    
 class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -171,7 +173,7 @@ class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
     full_text: str | None = None
     category: list[str] | None = []
     tags: list[str] | None = []
-    images: list[ArticleImageResponse] | None = []
+    images: list | None = Field(default=[])
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
