@@ -107,7 +107,7 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
     )
     article_updated = result.scalars().first()
     
-    if article.user_story.publish_status != UserStoryPublishStatus.PUBLISHED:
+    if article.user_story.publish_status == UserStoryPublishStatus.PENDING:
         await set_publish_status(
             session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
         )
