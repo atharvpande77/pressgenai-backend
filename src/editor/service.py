@@ -128,12 +128,24 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
 
 async def set_publish_status(session: AsyncSession, user_story_id: UUID, new_publish_status: str):
     published_at = datetime.now()+timedelta(hours=5, minutes=30) if new_publish_status == UserStoryPublishStatus.PUBLISHED else None
-    stmt = update(UserStories).where(UserStories.id == user_story_id).values({"publish_status": new_publish_status, "published_at": published_at}).returning(UserStories.publish_status)
-    stmt = update(UserStories).where(UserStories.id == user_story_id).values({"publish_status": new_publish_status}).returning(UserStories.publish_status)
-    result = await session.execute(stmt)
+
+    result = await session.execute(
+        update(UserStories)
+            .where(UserStories.id == user_story_id)
+            .values(publish_status=new_publish_status)
+            .returning(UserStories.publish_status)
+    )
     publish_status = result.scalar_one_or_none()
     if not publish_status:
         return None
+    
+    if published_at:
+        await session.execute(
+            update(GeneratedUserStories)
+                .where(GeneratedUserStories.user_story_id == user_story_id)
+                .values(published_at=published_at)
+        )
+    await session.commit()
     return publish_status
 
 async def _set_editor_id(session: AsyncSession, article: GeneratedUserStories, editor_id: str):
