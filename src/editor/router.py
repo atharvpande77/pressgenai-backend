@@ -28,6 +28,7 @@ async def get_articles_editor_dashboard(session: Session, curr_editor: EditorRol
 async def fetch_article_by_id(article_db: GetArticleDep, curr_editor: EditorRoleDep):
     article_db_dict = article_db.__dict__
     creator = article_db.author.user
+    editor=getattr(article_db.editor, 'user', None)
     images_keys = article_db_dict.get('images_keys', [])
     article_db_dict['images'] = get_images_with_urls(images_keys)
     
@@ -40,6 +41,10 @@ async def fetch_article_by_id(article_db: GetArticleDep, curr_editor: EditorRole
         creator_first_name = creator.first_name,
         creator_last_name = creator.last_name,
         creator_profile_image=get_full_s3_object_url(creator.profile_image_key),
+        editor_username = editor.username if editor else None,
+        editor_first_name = editor.first_name if editor else None,
+        editor_last_name = editor.last_name if editor else None,
+        editor_profile_image=get_full_s3_object_url(editor.profile_image_key) if editor else None,
         can_edit=can_edit
     )
 
