@@ -107,9 +107,11 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
     )
     article_updated = result.scalars().first()
     
-    await set_publish_status(
-        session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
-    )
+    if article.user_story.publish_status != UserStoryPublishStatus.PUBLISHED:
+        await set_publish_status(
+            session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
+        )
+        
     await session.commit()
     
     article_updated.images = get_images_with_urls(article_updated.images_keys)
