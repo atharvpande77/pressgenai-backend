@@ -87,6 +87,7 @@ async def get_all_articles(
             # .distinct()
             .limit(limit)
             .offset(offset)
+            .order_by(GeneratedUserStories.published_at.desc())
     )
     
     # result = await session.execute(
@@ -97,11 +98,12 @@ async def get_all_articles(
     #         GeneratedUserStories.category
     #     )
     #         .join(UserStories, onclause=UserStories.id==GeneratedUserStories.user_story_id)
-    #         # .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
-    #         # .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
-    #         .where(*where_clause)
+    #         .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
+    #         .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
+    #         .where(UserStories.publish_status == UserStoryPublishStatus.PUBLISHED)
     #         .limit(limit)
     #         .offset(offset)
+    #         .order_by(GeneratedUserStories.published_at)
     # )
     articles = result.all()
     for article in articles:
