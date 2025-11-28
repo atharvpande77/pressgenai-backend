@@ -64,7 +64,7 @@ class ArticleFullItem(CategorySerializerMixin, BaseModel):
         return get_images_with_urls(self.images_keys)
 
 class EditArticleSchema(BaseModel):
-    title: Annotated[str | None, Field(min_length=10, max_length=75)] = None
+    title: Annotated[str | None, Field(min_length=10, max_length=120)] = None
     snippet: Annotated[str | None, Field(min_length=100, max_length=2000)] = None
     full_text: Annotated[str | None, Field(min_length=500, max_length=50000)] = None
     category: list[str] | None = None

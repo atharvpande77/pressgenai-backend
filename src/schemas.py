@@ -98,6 +98,7 @@ class CreateManualStorySchema(BaseModel):
     #             raise ValueError(f'Invalid category: {cat}. Must be one of: {", ".join(valid_categories)}')
     #     return v
 
+
 class CreateStorySchema(BaseModel):
     # title: Annotated[str, Field(max_length=75)] = ""
     context: str | None = Field(None, min_length=50, max_length=1200)
