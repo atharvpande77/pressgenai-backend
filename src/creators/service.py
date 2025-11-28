@@ -178,7 +178,7 @@ async def update_creator_profile_db(
     if bio is not None:
         # Check if Authors record exists
         result = await session.execute(
-            select(Authors).where(Authors.user_id == curr_creator.id)
+            select(Authors).where(Authors.id == curr_creator.id)
         )
         author_row = result.scalar_one_or_none()
 
@@ -193,7 +193,7 @@ async def update_creator_profile_db(
             # Update existing author bio
             await session.execute(
                 update(Authors)
-                .where(Authors.user_id == curr_creator.id)
+                .where(Authors.id == curr_creator.id)
                 .values(bio=bio)
             )
 
@@ -203,7 +203,7 @@ async def update_creator_profile_db(
 
     # Fetch updated author profile
     result = await session.execute(
-        select(Authors).where(Authors.user_id == curr_creator.id)
+        select(Authors).where(Authors.id == curr_creator.id)
     )
     author_profile = result.scalar_one_or_none()
 

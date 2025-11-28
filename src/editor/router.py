@@ -82,7 +82,7 @@ async def get_creator(session: Annotated[AsyncSession, Depends(get_session)], cu
 async def create_new_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, payload: CreateCreatorSchema):
     return await add_creator_db(session, curr_editor.id, payload)
     
-@router.patch('/creators/{creator_id}/approve')
+@router.patch('/creators/{creator_id}/approve', response_model=CreatorItem)
 async def approve_creator(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, creator_id: UUID, approve: bool):
     return await approve_or_reject_creator_db(
         session, curr_editor.id, creator_id, approve
