@@ -48,7 +48,8 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
                     Creators.last_name.label('creator_last_name'),
                     Editors.first_name.label('editor_first_name'),
                     Editors.last_name.label('editor_last_name'),
-                    Editors.username.label('editor_username')
+                    Editors.username.label('editor_username'),
+                    (Editors.id == curr_editor_id).label('can_edit')
                     # get_profile_image_expression(label_name="creator_profile_image")
                 )
                     .join(UserStories, UserStories.id == GeneratedUserStories.user_story_id)
@@ -68,8 +69,8 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
             )
         articles = res.all()
         # print([article._asdict() for article in articles])
-        if not articles:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
+        # if not articles:
+        #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
         return articles
     except DatabaseError as e:
         msg = f'Error while {editor_status} fetching articles'

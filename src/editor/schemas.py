@@ -30,6 +30,7 @@ class ArticleItem(CategorySerializerMixin, BaseModel):
     editor_username: str | None = None
     editor_first_name: str | None = None
     editor_last_name: str | None = None
+    can_edit: bool | None = None
     # creator_profile_image: str | None = None
     
 
