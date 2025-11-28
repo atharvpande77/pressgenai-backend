@@ -434,6 +434,6 @@ async def edit_generated_article(session: Session, curr_creator: Annotated[Users
     },
 )
 async def change_story_status_to_submitted(
-    session: Session, generated_article: GeneratedArticleDep, request: UploadedImageKeys
+    session: Session, generated_article: GeneratedArticleDep, request: UploadedImageKeys | None = Body(default=None)
 ):
     return await update_user_story_status(session, generated_article, request)

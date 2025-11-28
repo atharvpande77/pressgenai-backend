@@ -88,7 +88,24 @@ async def get_all_articles(
             .limit(limit)
             .offset(offset)
     )
+    
+    # result = await session.execute(
+    #     select(
+    #         GeneratedUserStories.id,
+    #         GeneratedUserStories.title, 
+    #         GeneratedUserStories.snippet,
+    #         GeneratedUserStories.category
+    #     )
+    #         .join(UserStories, onclause=UserStories.id==GeneratedUserStories.user_story_id)
+    #         # .join(Creators, onclause=Creators.id == GeneratedUserStories.author_id)
+    #         # .join(Editors, onclause=Editors.id == GeneratedUserStories.editor_id, isouter=True)
+    #         .where(*where_clause)
+    #         .limit(limit)
+    #         .offset(offset)
+    # )
     articles = result.all()
+    for article in articles:
+        print({"id": article.id, "title": article.title, "snippet": article.snippet, "category": article.category})
     return articles
 
 

@@ -938,23 +938,37 @@ async def get_generated_user_story(
 
 from src.schemas import UploadedImageKeys
 
-async def update_user_story_status(session: AsyncSession, generated_article: GeneratedUserStories, request: UploadedImageKeys):
-    try:
-        if request:
-            await session.execute(
-                update(GeneratedUserStories)
-                    .where(GeneratedUserStories.id == generated_article.id)
-                    .values(images_keys=request.images_keys)
-            )
-        
-        result = await session.execute(update(UserStories).where(UserStories.id == generated_article.user_story_id, UserStories.author_id == generated_article.author_id).values({'status': UserStoryStatus.SUBMITTED}).returning(UserStories.id, UserStories.status))
-        await session.commit()
-        user_story_db = result.first()
-        return {"id": user_story_db.id, "status": user_story_db.status}
-    except Exception as e:
-        msg = f"Error while updating story status to submitted: {str(e)}"
-        print(msg)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=msg)
+async def update_user_story_status(session: AsyncSession, generated_article: GeneratedUserStories, request: UploadedImageKeys | None=None):
+    story_mode = generated_article.user_story.mode
+    # --- Determine final image list ---
+    if story_mode == "ai":
+        # AI mode → images only come at submission time
+        final_images = request.images_keys if (request and request.images_keys is not None) else []
+    else:
+        # Manual mode → keep existing unless explicitly replaced
+        if request and request.images_keys is not None:
+            final_images = request.images_keys
+        else:
+            final_images = generated_article.images_keys or []
+
+    # --- Update images ---
+    await session.execute(
+        update(GeneratedUserStories)
+            .where(GeneratedUserStories.id == generated_article.id)
+            .values(images_keys=final_images)
+    )
+
+    # --- Update status to submitted ---
+    await session.execute(
+        update(UserStories)
+            .where(UserStories.id == generated_article.user_story_id)
+            .values(status=UserStoryStatus.SUBMITTED)
+    )
+
+    await session.commit()
+
+    return {"status": "success"}
+
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:

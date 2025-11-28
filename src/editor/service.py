@@ -160,11 +160,13 @@ async def publish_article_db(session: AsyncSession, article: GeneratedUserStorie
     publish_status = await set_publish_status(session, article.user_story_id, UserStoryPublishStatus.PUBLISHED)
     if not publish_status:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='no story found for this generated article')
+    
     await session.execute(
         update(GeneratedUserStories)
-            .values(published_at=datetime.now()+timedelta(hours=5, minutes=30))
+            .values(editor_id=curr_editor_id)
             .where(GeneratedUserStories.id == article.id)
     )
+    
     await session.commit()
     return {"msg": "success", "publish_status": publish_status}
 
