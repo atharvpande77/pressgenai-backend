@@ -78,11 +78,34 @@ class CreationMode(str, Enum):
     MANUAL = "manual"
     AI = "ai"
 
+class ContentSizeLimits:
+    TITLE_MIN: int = 5
+    TITLE_MAX: int = 120
+    
+    SNIPPET_MIN: int = 50
+    SNIPPET_MAX: int = 2500
+    
+    FULL_TEXT_MIN: int = 250
+    FULL_TEXT_MAX: int = 75000
+    
+    CONTEXT_MIN: int = 50
+    CONTEXT_MAX: int = 1200
+    
+    TAGS_MIN: int = 1
+    TAGS_MAX: int = 15
+    
+    CATEGORY_MIN: int = 1
+    CATEGORY_MAX: int = 3
+    
+    ANSWER_MIN: int = 8
+    ANSWER_MAX: int = 2000
+
+
 class CreateManualStorySchema(BaseModel):
-    title: str | None = Field(None, min_length=10, max_length=120)
+    title: str | None = Field(None, min_length=ContentSizeLimits.TITLE_MIN, max_length=ContentSizeLimits.TITLE_MAX)
     # english_title: str = Field(..., min_length=10, max_length=120)
     # context: str = Field(..., min_length=50, max_length=1200)
-    full_text: str = Field(..., min_length=300)
+    full_text: str = Field(..., min_length=ContentSizeLimits.FULL_TEXT_MIN, max_length=ContentSizeLimits.FULL_TEXT_MAX)
     # snippet: str = Field(..., min_length=50, max_length=400)
     # category: list[str] = Field(..., min_length=1, max_length=3)
     # tags: list[str] = Field(..., min_length=1, max_length=15)
@@ -101,7 +124,7 @@ class CreateManualStorySchema(BaseModel):
 
 class CreateStorySchema(BaseModel):
     # title: Annotated[str, Field(max_length=75)] = ""
-    context: str | None = Field(None, min_length=50, max_length=1200)
+    context: str | None = Field(None, min_length=ContentSizeLimits.CONTEXT_MIN, max_length=ContentSizeLimits.CONTEXT_MAX)
     options: GenerateOptionsSchema | None = None
     mode: CreationMode = Field(default=CreationMode.AI)
     manual_story: Optional[CreateManualStorySchema] = None
@@ -136,7 +159,7 @@ class QuestionsResponseSchema(BaseModel):
 
 class AnswerSchema(BaseModel):
     question_id: str
-    answer_text: str
+    answer_text: str = Field(..., min_length=ContentSizeLimits.ANSWER_MIN, max_length=ContentSizeLimits.ANSWER_MAX)
 
 class ArticleImageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

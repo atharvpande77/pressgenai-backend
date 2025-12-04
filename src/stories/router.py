@@ -10,6 +10,7 @@ from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story
 from src.models import UserStories, Users, UserRoles, GeneratedUserStories
 from src.auth.dependencies import role_checker
 from src.media.service import check_article_authorization
+from src.stories.dependencies import user_story_mode_checker
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -283,7 +284,7 @@ async def initiate_new_story(
 )
 async def get_context_questions(
     session: Session,
-    user_story: UserStoryDep,
+    user_story: Annotated[UserStories, Depends(user_story_mode_checker("ai"))],
     force_regenerate: bool = False
 ):
     return await generate_and_store_story_questions(session, user_story, force_regenerate)
@@ -331,7 +332,7 @@ async def get_context_questions(
         },
     },
 )
-async def submit_answer(request: AnswerSchema, session: Session, user_story: UserStoryDep):
+async def submit_answer(request: AnswerSchema, session: Session, user_story: Annotated[UserStories, Depends(user_story_mode_checker("ai"))]):
     if user_story.mode != 'ai':
         raise HTTPException(status_code=400, detail="User story is not in AI mode")
     return await upsert_answer(session, user_story.id, request)

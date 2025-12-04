@@ -459,6 +459,11 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                 raise HTTPException(status_code=500, detail="Error while creating new story")
 
             title = manual_story.title
+            full_text = manual_story.full_text.strip()
+            
+            title_hash = generate_hash(title)
+            full_text_hash = generate_hash(full_text)
+            
 
             result = await session.execute(
                 insert(GeneratedUserStories)
@@ -466,10 +471,12 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                         user_story_id=user_story.id,
                         author_id=curr_creator_id,
                         title=title,
+                        title_hash=title_hash,
                         # english_title=manual_story.english_title.strip(),
                         # slug=slug
                         # snippet=manual_story.snippet.strip(),
                         full_text=manual_story.full_text.strip(),
+                        full_text_hash=full_text_hash,
                         # category=manual_story.category,
                         # tags=manual_story.tags,
                         images_keys=manual_story.images_keys,
@@ -542,24 +549,29 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
         traceback.print_exc()
 
         err_msg = str(e.orig).lower()
+        
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="A story with the same title, body, or context already exists."
+        )
 
         # Differentiate based on constraint names or known patterns
-        if 'uq_author_titlehash' in err_msg or 'title_hash' in err_msg:
-            raise HTTPException(
-                status_code=409,
-                detail="You have already created a story with the same title."
-            )
-        elif 'user_story_id' in err_msg or 'context' in err_msg:
-            raise HTTPException(
-                status_code=409,
-                detail="A story with the same context already exists."
-            )
-        else:
-            # Generic fallback
-            raise HTTPException(
-                status_code=400,
-                detail="An unexpected database constraint was violated."
-            )
+        # if 'uq_author_titlehash' in err_msg or 'title_hash' in err_msg:
+        #     raise HTTPException(
+        #         status_code=409,
+        #         detail="You have already created a story with the same title."
+        #     )
+        # elif 'user_story_id' in err_msg or 'context' in err_msg:
+        #     raise HTTPException(
+        #         status_code=409,
+        #         detail="A story with the same context already exists."
+        #     )
+        # else:
+        #     # Generic fallback
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail="An unexpected database constraint was violated."
+        #     )
     
 
     # try:

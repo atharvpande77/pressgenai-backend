@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_validator, field_serializer, EmailStr
 from datetime import datetime
 from uuid import UUID
 from pydantic import computed_field, Field
@@ -6,7 +6,7 @@ from typing import Annotated
 
 from src.models import NewsCategory
 from src.news.utils import get_category_name
-from src.schemas import CategorySerializerMixin
+from src.schemas import CategorySerializerMixin, ContentSizeLimits
 from src.aws.utils import get_images_with_urls
 
 category_values = [category.value for category in NewsCategory]
@@ -64,12 +64,12 @@ class ArticleFullItem(CategorySerializerMixin, BaseModel):
         return get_images_with_urls(self.images_keys)
 
 class EditArticleSchema(BaseModel):
-    title: Annotated[str | None, Field(min_length=10, max_length=120)] = None
-    snippet: Annotated[str | None, Field(min_length=100, max_length=2000)] = None
-    full_text: Annotated[str | None, Field(min_length=500, max_length=50000)] = None
-    category: list[str] | None = None
-    tags: list[str] | None = None
-    images_keys: list[str] | None = Field(default=None, max_length=3)
+    title: Annotated[str | None, Field(min_length=ContentSizeLimits.TITLE_MIN, max_length=ContentSizeLimits.TITLE_MAX)] = None
+    snippet: Annotated[str | None, Field(min_length=ContentSizeLimits.SNIPPET_MIN, max_length=ContentSizeLimits.SNIPPET_MAX)] = None
+    full_text: Annotated[str | None, Field(min_length=ContentSizeLimits.FULL_TEXT_MIN, max_length=ContentSizeLimits.FULL_TEXT_MAX)] = None
+    category: list[str] | None = Field(default=[], min_length=ContentSizeLimits.CATEGORY_MIN, max_length=ContentSizeLimits.CATEGORY_MAX)
+    tags: list[str] | None = Field(default=[], max_length=ContentSizeLimits.TAGS_MAX)
+    images_keys: list[str] | None = Field(default=[], max_length=3)
 
     @field_validator('category')
     @classmethod
