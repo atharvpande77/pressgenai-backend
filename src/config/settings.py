@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     AWS_PROFILE: str
     AWS_REGION: str
     PROFILE_IMAGE_S3_BUCKET: str
+    
+    BAJAJ_INSURANCE_ASSISTANT_ID: str
 
 settings = Settings()
 

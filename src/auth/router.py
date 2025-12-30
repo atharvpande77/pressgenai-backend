@@ -13,7 +13,7 @@ from src.auth.dependencies import get_current_user
 
 router = APIRouter()
 Session = Annotated[AsyncSession, Depends(get_session)]
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="pressgenai/api/auth/")
 
 @router.post('/', response_model=LoginResponse)
 async def login(session: Session, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
