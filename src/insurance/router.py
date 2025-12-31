@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 import time
+from sse_starlette.sse import EventSourceResponse
 
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
@@ -12,6 +13,7 @@ ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 router = APIRouter()
+TYPING_DELAY = 0.02  # seconds per character
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
@@ -60,6 +62,55 @@ def chat(req: ChatRequest):
             return ChatResponse(reply=msg.content[0].text.value)
 
     raise HTTPException(status_code=500, detail="No assistant response found")
+
+
+@router.get("/chat/stream")
+async def stream_insurance_chat(session_id: str, message: str, goal: str | None = None):
+    if not ASSISTANT_ID:
+        raise HTTPException(status_code=500, detail="Assistant not configured")
+
+    session = get_or_create_thread(session_id, goal, client)
+    thread_id = session["thread_id"]
+
+    # Inject goal only once
+    if session["goal"] and not session.get("goal_injected"):
+        inject_initial_context(thread_id, session["goal"], client)
+        session["goal_injected"] = True
+        
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=message
+    )
+    
+    def event_generator():
+        # Create run with streaming enabled
+        with client.beta.threads.runs.stream(
+            thread_id=thread_id,
+            assistant_id=ASSISTANT_ID
+        ) as stream:
+            for event in stream:
+                # We only care about incremental text
+                if event.event == "thread.message.delta":
+                    delta = event.data.delta
+                    if delta.content:
+                        for block in delta.content:
+                            if block.type == "text":
+                                for char in block.text.value:
+                                    yield {
+                                        "event": "message",
+                                        "data": char
+                                    }
+                                    time.sleep(TYPING_DELAY)
+
+                # End signal
+                if event.event == "thread.run.completed":
+                    yield {
+                        "event": "done",
+                        "data": ""
+                    }
+
+    return EventSourceResponse(event_generator())
 
 
 @router.post("/reset")
