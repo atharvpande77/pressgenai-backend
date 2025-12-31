@@ -13,7 +13,7 @@ ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 router = APIRouter()
-TYPING_DELAY = 0.02  # seconds per character
+TYPING_DELAY = 0.01  # seconds per character
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
