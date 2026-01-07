@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     AWS_REGION: str
     PROFILE_IMAGE_S3_BUCKET: str
     
-    BAJAJ_INSURANCE_ASSISTANT_ID: str
+    RETIREMENT_PLANNING_ASSISTANT_ID: str
+    TERM_INSURANCE_ASSISTANT_ID: str
+    CHILD_EDUCATION_PLANNING_ASSISTANT_ID: str
+    
 
 settings = Settings()
 

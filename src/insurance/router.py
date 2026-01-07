@@ -9,7 +9,7 @@ from src.insurance.session_store import get_or_create_thread, reset_session
 from src.insurance.service import inject_initial_context
 
 
-ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
+# ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 router = APIRouter()
@@ -17,8 +17,8 @@ TYPING_DELAY = 0.005  # seconds per character
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
-    if not ASSISTANT_ID:
-        raise HTTPException(status_code=500, detail="Assistant not configured")
+    # if not ASSISTANT_ID:
+        # raise HTTPException(status_code=500, detail="Assistant not configured")
 
     session = get_or_create_thread(req.session_id, req.goal, client)
     thread_id = session["thread_id"]
@@ -66,16 +66,16 @@ def chat(req: ChatRequest):
 
 @router.get("/chat/stream")
 async def stream_insurance_chat(session_id: str, message: str, goal: str | None = None):
-    if not ASSISTANT_ID:
-        raise HTTPException(status_code=500, detail="Assistant not configured")
+    # if not ASSISTANT_ID:
+    #     raise HTTPException(status_code=500, detail="Assistant not configured")
 
     session = get_or_create_thread(session_id, goal, client)
     thread_id = session["thread_id"]
 
     # Inject goal only once
-    if session["goal"] and not session.get("goal_injected"):
-        inject_initial_context(thread_id, session["goal"], client)
-        session["goal_injected"] = True
+    # if session["goal"] and not session.get("goal_injected"):
+    #     inject_initial_context(thread_id, session["goal"], client)
+    #     session["goal_injected"] = True
         
     client.beta.threads.messages.create(
         thread_id=thread_id,
@@ -87,7 +87,7 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
         # Create run with streaming enabled
         with client.beta.threads.runs.stream(
             thread_id=thread_id,
-            assistant_id=ASSISTANT_ID
+            assistant_id=session["assistant_id"]
         ) as stream:
             for event in stream:
                 # We only care about incremental text
