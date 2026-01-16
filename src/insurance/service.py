@@ -1,5 +1,4 @@
 import openai
-import threading
 from src.config.settings import settings
 
 client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -66,35 +65,42 @@ def inject_initial_context(thread_id: str, goal: str, client):
     )
 
 
-conversations = {}
-conv_lock = threading.Lock()
+TABLE_NAME = "police_whatapp_bot_session_store"
 
-def check_if_message_after_ama(conversation_id: str, message: str) -> bool:
+
+async def check_if_message_after_ama(ddb, conversation_id: str, message: str) -> bool:
     """
     Tracks if "Ask me anything!" has been reached in a conversation.
     Also sets the language based on which trigger message was received.
     Returns True if conversation is past AMA state (should call GPT).
     Returns False if AMA not yet reached (should NOT call GPT).
     """
-    with conv_lock:
-        if message.lower() == "ask me anything!":
-            if conversation_id not in conversations:
-                conversations[conversation_id] = {}
-            conversations[conversation_id]["ama_reached"] = True
-            conversations[conversation_id]["language"] = "English"
-            return False
-        
-        if message == "कोणतेही प्रश्न विचारा":
-            if conversation_id not in conversations:
-                conversations[conversation_id] = {}
-            conversations[conversation_id]["ama_reached"] = True
-            conversations[conversation_id]["language"] = "Marathi"
-            return False
-        
-        return conversations.get(conversation_id, {}).get("ama_reached", False)
+    table = await ddb.Table(TABLE_NAME)
+    
+    if message.lower() == "ask me anything!":
+        await table.put_item(Item={
+            "conversation_id": conversation_id,
+            "ama_reached": True,
+            "language": "English"
+        })
+        return False
+    
+    if message == "कोणतेही प्रश्न विचारा":
+        await table.put_item(Item={
+            "conversation_id": conversation_id,
+            "ama_reached": True,
+            "language": "Marathi"
+        })
+        return False
+    
+    # Check if ama_reached is True in DynamoDB
+    response = await table.get_item(Key={"conversation_id": conversation_id})
+    item = response.get("Item", {})
+    return item.get("ama_reached", False)
 
 
-def get_conversation_language(conversation_id: str) -> str:
-    """Returns the language set for a conversation, defaults to English."""
-    with conv_lock:
-        return conversations.get(conversation_id, {})
+async def get_conversation_by_id(ddb, conversation_id: str) -> dict:
+    """Returns the conversation data from DynamoDB, defaults to empty dict."""
+    table = await ddb.Table(TABLE_NAME)
+    response = await table.get_item(Key={"conversation_id": conversation_id})
+    return response.get("Item", {"language": "English"})

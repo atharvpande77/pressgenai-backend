@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from openai import OpenAI
 import time
 import httpx
@@ -7,7 +7,8 @@ from sse_starlette.sse import EventSourceResponse
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
 from src.insurance.session_store import get_or_create_thread, reset_session
-from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_language
+from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id
+from src.aws.client import get_ddb_client
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -121,14 +122,12 @@ def reset(session_id: str):
 
 
 @router.post("/police/wati/chat/webhook")
-async def police_whatsapp_chat_webhook(request: Request):
+async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_client)):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
     """
     body = await request.json()
-
-    
 
     if body:
         message = body.get("text")
@@ -140,20 +139,20 @@ async def police_whatsapp_chat_webhook(request: Request):
 
     # Forward request body to pipedream for debugging (do this first!)
     async with httpx.AsyncClient() as http_client:
-        body[f'{conversation_id}_info'] = get_conversation_language(conversation_id)
         await http_client.post(
             "https://eomzdlg4w09zb4z.m.pipedream.net",
             json=body
         )
 
-    if (not check_if_message_after_ama(conversation_id, message)) or message.lower() == "exit":
+    if (not await check_if_message_after_ama(ddb, conversation_id, message)) or message.lower() == "exit":
         return {"reply": ""}
     
     # Get GPT response
     if len(phone) == 10:
         phone = "+91" + phone
 
-    language = get_conversation_language(conversation_id).get('language')
+    conversation = await get_conversation_by_id(ddb, conversation_id)
+    language = conversation.get('language', 'English')
     gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
     # # Send response to WhatsApp via WATI API
