@@ -7,7 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
 from src.insurance.session_store import get_or_create_thread, reset_session
-from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama
+from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_language
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -150,6 +150,7 @@ async def police_whatsapp_chat_webhook(request: Request):
     if len(phone) == 10:
         phone = "+91" + phone
 
+    language = get_conversation_language(conversation_id)
     gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
     # # Send response to WhatsApp via WATI API

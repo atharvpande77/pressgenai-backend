@@ -67,8 +67,30 @@ def inject_initial_context(thread_id: str, goal: str, client):
 
 conversations = {}
 
-def check_if_message_after_ama(conversation_id: str, message: str):
-    if message.lower() == "ask me anything!" or message == "कोणतेही प्रश्न विचारा":
+def check_if_message_after_ama(conversation_id: str, message: str) -> bool:
+    """
+    Tracks if "Ask me anything!" has been reached in a conversation.
+    Also sets the language based on which trigger message was received.
+    Returns True if conversation is past AMA state (should call GPT).
+    Returns False if AMA not yet reached (should NOT call GPT).
+    """
+    if message.lower() == "ask me anything!":
+        if conversation_id not in conversations:
+            conversations[conversation_id] = {}
         conversations[conversation_id]["ama_reached"] = True
+        conversations[conversation_id]["language"] = "English"
         return False
-    return conversations.get(conversation_id, {}).get("ama_reached", False) 
+    
+    if message == "कोणतेही प्रश्न विचारा":
+        if conversation_id not in conversations:
+            conversations[conversation_id] = {}
+        conversations[conversation_id]["ama_reached"] = True
+        conversations[conversation_id]["language"] = "Marathi"
+        return False
+    
+    return conversations.get(conversation_id, {}).get("ama_reached", False)
+
+
+def get_conversation_language(conversation_id: str) -> str:
+    """Returns the language set for a conversation, defaults to English."""
+    return conversations.get(conversation_id, {}).get("language", "English")
