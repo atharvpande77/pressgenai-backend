@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     RETIREMENT_PLANNING_ASSISTANT_ID: str
     TERM_INSURANCE_ASSISTANT_ID: str
     CHILD_EDUCATION_PLANNING_ASSISTANT_ID: str
-    
+
+    WATI_API_ACCESS_TOKEN: str
+    WATI_TENANT_ID: str
+    WATI_TENANT_API: str
 
 settings = Settings()
 

@@ -25,7 +25,7 @@ SCOPE_CONFIG = {
 # def parse_story_date_to_datetime(story_pub_date: str) -> Optional[datetime]:
 #     """
 #     Convert story publication date string to datetime object.
-#     Handles formats like: 40s, 30m, 2h, 3d, 1mo, 2yr
+#     Handles formats like: 40s, 30m,z 2h, 3d, 1mo, 2yr
 #     """
 #     if not story_pub_date:
 #         return None

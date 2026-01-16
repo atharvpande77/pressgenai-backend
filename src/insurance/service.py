@@ -1,3 +1,49 @@
+import openai
+from src.config.settings import settings
+
+client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+POLICE_HELPDESK_SYSTEM_PROMPT = """You are an official Nagpur City Police helpdesk assistant.
+
+Answer only general informational queries asked under "Other Enquiry".
+Do NOT handle emergencies, complaints, FIRs, legal accusations, or urgent situations.
+If the message is urgent or a complaint, instruct the user to contact the nearest police station or dial 112.
+
+Respond in the same language as the user (English or Marathi).
+Keep replies clear, polite, and concise.
+Do not speculate or give legal advice.
+If information is unavailable, say so clearly."""
+
+
+async def get_police_helpdesk_response(query: str, language: str = "English") -> str:
+    """
+    Calls OpenAI chat completions API to get a response for police helpdesk queries.
+    
+    Args:
+        query: The user's question/message
+        language: The language to respond in (English or Marathi)
+    
+    Returns:
+        The assistant's response text
+    """
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": f"{POLICE_HELPDESK_SYSTEM_PROMPT}\n\nRespond in {language}."
+            },
+            {
+                "role": "user",
+                "content": query
+            }
+        ],
+        temperature=0.3,
+        max_tokens=500
+    )
+    
+    return response.choices[0].message.content
+
 def inject_initial_context(thread_id: str, goal: str, client):
     goal_map = {
         "retirement": "Retirement planning",
@@ -17,3 +63,4 @@ def inject_initial_context(thread_id: str, goal: str, client):
             Proceed with questions relevant to this objective only.
             """
     )
+
