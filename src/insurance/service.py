@@ -31,7 +31,7 @@ async def get_police_helpdesk_response(query: str, language: str = "English") ->
         messages=[
             {
                 "role": "system",
-                "content": f"{POLICE_HELPDESK_SYSTEM_PROMPT}\n\nRespond in {language}."
+                "content": f"{POLICE_HELPDESK_SYSTEM_PROMPT}"
             },
             {
                 "role": "user",

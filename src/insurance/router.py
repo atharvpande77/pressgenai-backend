@@ -148,7 +148,7 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
 
     # conversation = await get_conversation_by_id(ddb, conversation_id)
     # language = conversation.get('language', 'English')
-    gpt_response = await get_police_helpdesk_response(query=message, language="English")
+    gpt_response = await get_police_helpdesk_response(query=message)
     
     # # Send response to WhatsApp via WATI API
     wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
