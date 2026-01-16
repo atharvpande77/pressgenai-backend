@@ -127,7 +127,7 @@ async def police_whatsapp_chat_webhook(language: str, message: str, phone: str):
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
     """
-    body = await request.json()
+    # body = await request.json()
     
     # message = body.get("text", "")
     # language = body.get("language", "English")
