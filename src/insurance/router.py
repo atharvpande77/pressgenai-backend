@@ -137,14 +137,15 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
     if not message or not phone:
         raise HTTPException(status_code=400, detail="Phone and text are required")
 
-    # Forward request body to pipedream for debugging (do this first!)
-    async with httpx.AsyncClient() as http_client:
-        await http_client.post(
-            "https://eomzdlg4w09zb4z.m.pipedream.net",
-            json=body
-        )
+    
 
     if (not await check_if_message_after_ama(ddb, conversation_id, message)) or message.lower() == "exit":
+        # Forward request body to pipedream for debugging (do this first!)
+        async with httpx.AsyncClient() as http_client:
+            await http_client.post(
+                "https://eomzdlg4w09zb4z.m.pipedream.net",
+                json=body
+            )
         return {"reply": ""}
     
     # Get GPT response
