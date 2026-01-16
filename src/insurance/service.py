@@ -1,4 +1,5 @@
 import openai
+import threading
 from src.config.settings import settings
 
 client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -66,6 +67,7 @@ def inject_initial_context(thread_id: str, goal: str, client):
 
 
 conversations = {}
+conv_lock = threading.Lock()
 
 def check_if_message_after_ama(conversation_id: str, message: str) -> bool:
     """
@@ -74,23 +76,25 @@ def check_if_message_after_ama(conversation_id: str, message: str) -> bool:
     Returns True if conversation is past AMA state (should call GPT).
     Returns False if AMA not yet reached (should NOT call GPT).
     """
-    if message.lower() == "ask me anything!":
-        if conversation_id not in conversations:
-            conversations[conversation_id] = {}
-        conversations[conversation_id]["ama_reached"] = True
-        conversations[conversation_id]["language"] = "English"
-        return False
-    
-    if message == "कोणतेही प्रश्न विचारा":
-        if conversation_id not in conversations:
-            conversations[conversation_id] = {}
-        conversations[conversation_id]["ama_reached"] = True
-        conversations[conversation_id]["language"] = "Marathi"
-        return False
-    
-    return conversations.get(conversation_id, {}).get("ama_reached", False)
+    with conv_lock:
+        if message.lower() == "ask me anything!":
+            if conversation_id not in conversations:
+                conversations[conversation_id] = {}
+            conversations[conversation_id]["ama_reached"] = True
+            conversations[conversation_id]["language"] = "English"
+            return False
+        
+        if message == "कोणतेही प्रश्न विचारा":
+            if conversation_id not in conversations:
+                conversations[conversation_id] = {}
+            conversations[conversation_id]["ama_reached"] = True
+            conversations[conversation_id]["language"] = "Marathi"
+            return False
+        
+        return conversations.get(conversation_id, {}).get("ama_reached", False)
 
 
 def get_conversation_language(conversation_id: str) -> str:
     """Returns the language set for a conversation, defaults to English."""
-    return conversations.get(conversation_id, {})
+    with conv_lock:
+        return conversations.get(conversation_id, {})
