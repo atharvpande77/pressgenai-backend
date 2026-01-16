@@ -93,4 +93,4 @@ def check_if_message_after_ama(conversation_id: str, message: str) -> bool:
 
 def get_conversation_language(conversation_id: str) -> str:
     """Returns the language set for a conversation, defaults to English."""
-    return conversations.get(conversation_id, {}).get("language", "English")
+    return conversations.get(conversation_id, {})
