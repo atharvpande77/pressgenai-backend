@@ -68,7 +68,7 @@ def inject_initial_context(thread_id: str, goal: str, client):
 conversations = {}
 
 def check_if_message_after_ama(conversation_id: str, message: str):
-    if message == "Ask Me Anything!":
+    if message.lower() == "ask me anything!" or message == "कोणतेही प्रश्न विचारा":
         conversations[conversation_id]["ama_reached"] = True
         return False
     return conversations.get(conversation_id, {}).get("ama_reached", False) 

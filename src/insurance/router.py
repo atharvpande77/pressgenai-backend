@@ -143,8 +143,8 @@ async def police_whatsapp_chat_webhook(request: Request):
     if not message or not phone:
         raise HTTPException(status_code=400, detail="Phone and text are required")
 
-    if not check_if_message_after_ama(conversation_id, message):
-        return {"reply": "Ask Me Anything!"}
+    if not check_if_message_after_ama(conversation_id, message) or message.lower() == "exit":
+        return {"reply": ""}
     
     # Get GPT response
     if len(phone) == 10:
