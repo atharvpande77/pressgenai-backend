@@ -128,6 +128,13 @@ async def police_whatsapp_chat_webhook(request: Request):
     """
     body = await request.json()
 
+    # Forward request body to pipedream for debugging (do this first!)
+    async with httpx.AsyncClient() as http_client:
+        await http_client.post(
+            "https://eomzdlg4w09zb4z.m.pipedream.net",
+            json=body
+        )
+
     if body:
         message = body.get("text")
         phone = body.get("waId")
@@ -138,13 +145,6 @@ async def police_whatsapp_chat_webhook(request: Request):
 
     if (not check_if_message_after_ama(conversation_id, message)) or message.lower() == "exit":
         return {"reply": ""}
-
-    # Forward request body to pipedream for debugging
-    async with httpx.AsyncClient() as http_client:
-        await http_client.post(
-            "https://eomzdlg4w09zb4z.m.pipedream.net",
-            json=body
-        )
     
     # Get GPT response
     if len(phone) == 10:
