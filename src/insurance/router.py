@@ -121,48 +121,50 @@ def reset(session_id: str):
     return {"status": "reset"}
 
 
-@router.post("/police/wati/chat/webhook/{phone}")
-async def police_whatsapp_chat_webhook(language: str, phone: str, request: Request):
+@router.post("/police/wati/chat/webhook")
+async def police_whatsapp_chat_webhook(request: Request):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
     """
     body = await request.json()
+    
+    # Forward request body to pipedream for debugging
+    async with httpx.AsyncClient() as http_client:
+        await http_client.post(
+            "https://eomzdlg4w09zb4z.m.pipedream.net",
+            json=body
+        )
 
     if body:
         message = body.get("text", "")
+        phone = body.get("waId", "")
     else:
         message = ""
+        phone = ""
     
-    # message = body.get("text", "")
-    # language = body.get("language", "English")
-    # wa_id = body.get("waId")
-    
-    # if not message:
-    #     raise HTTPException(status_code=400, detail="Message is required")
-    
-    # if not wa_id:
-    #     raise HTTPException(status_code=400, detail="waId is required")
+    if not message:
+        return {"status": "no message"}
     
     # Get GPT response
     if len(phone) == 10:
         phone = "+91" + phone
-    gpt_response = await get_police_helpdesk_response(query=message, language=language)
+    # gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
-    # Send response to WhatsApp via WATI API
-    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
+    # # Send response to WhatsApp via WATI API
+    # wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
     
-    async with httpx.AsyncClient() as http_client:
-        wati_response = await http_client.post(
-            wati_url,
-            params={"messageText": gpt_response},
-            headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
-        )
+    # async with httpx.AsyncClient() as http_client:
+    #     wati_response = await http_client.post(
+    #         wati_url,
+    #         params={"messageText": gpt_response},
+    #         headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
+    #     )
         
-        if wati_response.status_code != 200:
-            raise HTTPException(
-                status_code=502, 
-                detail=f"Failed to send message via WATI: {wati_response.text}"
-            )
+    #     if wati_response.status_code != 200:
+    #         raise HTTPException(
+    #             status_code=502, 
+    #             detail=f"Failed to send message via WATI: {wati_response.text}"
+    #         )
     
     return {"reply": gpt_response, "wati_status": "sent"}
