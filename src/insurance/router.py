@@ -122,19 +122,19 @@ def reset(session_id: str):
 
 
 @router.post("/police/wati/chat/webhook")
-async def police_whatsapp_chat_webhook(request: Request):
+async def police_whatsapp_chat_webhook(language: str, message: str, request: Request):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
     """
     body = await request.json()
     
-    message = body.get("text", "")
+    # message = body.get("text", "")
     language = body.get("language", "English")
     wa_id = body.get("waId")
     
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required")
+    # if not message:
+    #     raise HTTPException(status_code=400, detail="Message is required")
     
     if not wa_id:
         raise HTTPException(status_code=400, detail="waId is required")
