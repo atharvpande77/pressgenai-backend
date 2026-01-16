@@ -122,12 +122,17 @@ def reset(session_id: str):
 
 
 @router.post("/police/wati/chat/webhook/{phone}")
-async def police_whatsapp_chat_webhook(language: str, message: str, phone: str):
+async def police_whatsapp_chat_webhook(language: str, phone: str, request: Request):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
     """
-    # body = await request.json()
+    body = await request.json()
+
+    if body:
+        message = body.get("text", "")
+    else:
+        message = ""
     
     # message = body.get("text", "")
     # language = body.get("language", "English")
