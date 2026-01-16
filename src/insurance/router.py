@@ -140,6 +140,8 @@ async def police_whatsapp_chat_webhook(language: str, message: str, phone: str):
     #     raise HTTPException(status_code=400, detail="waId is required")
     
     # Get GPT response
+    if len(phone) == 10:
+        phone = "+91" + phone
     gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
     # Send response to WhatsApp via WATI API
