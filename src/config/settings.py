@@ -26,7 +26,6 @@ class Settings(BaseSettings):
 
     WATI_API_ACCESS_TOKEN: str
     WATI_TENANT_ID: str
-    WATI_TENANT_API: str
 
 settings = Settings()
 
