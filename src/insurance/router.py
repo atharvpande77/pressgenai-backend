@@ -130,7 +130,7 @@ async def police_whatsapp_chat_webhook(language: str, message: str, request: Req
     body = await request.json()
     
     # message = body.get("text", "")
-    language = body.get("language", "English")
+    # language = body.get("language", "English")
     wa_id = body.get("waId")
     
     # if not message:
