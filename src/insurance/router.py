@@ -7,8 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
 from src.insurance.session_store import get_or_create_thread, reset_session
-from src.insurance.service import inject_initial_context, get_police_helpdesk_response
-
+from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -137,34 +136,36 @@ async def police_whatsapp_chat_webhook(request: Request):
         )
 
     if body:
-        message = body.get("text", "")
-        phone = body.get("waId", "")
-    else:
-        message = ""
-        phone = ""
+        message = body.get("text")
+        phone = body.get("waId")
+        conversation_id = body.get("conversationId")
     
-    if not message:
-        return {"status": "no message"}
+    if not message or not phone:
+        raise HTTPException(status_code=400, detail="Phone and text are required")
+
+    if not check_if_message_after_ama(conversation_id, message):
+        return {"reply": "Ask Me Anything!"}
     
     # Get GPT response
     if len(phone) == 10:
         phone = "+91" + phone
-    # gpt_response = await get_police_helpdesk_response(query=message, language=language)
+
+    gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
     # # Send response to WhatsApp via WATI API
-    # wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
+    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
     
-    # async with httpx.AsyncClient() as http_client:
-    #     wati_response = await http_client.post(
-    #         wati_url,
-    #         params={"messageText": gpt_response},
-    #         headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
-    #     )
+    async with httpx.AsyncClient() as http_client:
+        wati_response = await http_client.post(
+            wati_url,
+            params={"messageText": gpt_response},
+            headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
+        )
         
-    #     if wati_response.status_code != 200:
-    #         raise HTTPException(
-    #             status_code=502, 
-    #             detail=f"Failed to send message via WATI: {wati_response.text}"
-    #         )
+        if wati_response.status_code != 200:
+            raise HTTPException(
+                status_code=502, 
+                detail=f"Failed to send message via WATI: {wati_response.text}"
+            )
     
     return {"reply": gpt_response, "wati_status": "sent"}
