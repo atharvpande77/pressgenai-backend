@@ -132,29 +132,23 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
     if body:
         message = body.get("text")
         phone = body.get("waId")
-        conversation_id = body.get("conversationId")
+        # conversation_id = body.get("conversationId")
+        
     
     if not message or not phone:
         raise HTTPException(status_code=400, detail="Phone and text are required")
-
     
-
-    if (not await check_if_message_after_ama(ddb, conversation_id, message)) or message.lower() == "exit":
-        # Forward request body to pipedream for debugging (do this first!)
-        async with httpx.AsyncClient() as http_client:
-            await http_client.post(
-                "https://eomzdlg4w09zb4z.m.pipedream.net",
-                json=body
-            )
-        return {"reply": ""}
-    
+    message_lower = message.lower()
     # Get GPT response
     if len(phone) == 10:
         phone = "+91" + phone
 
-    conversation = await get_conversation_by_id(ddb, conversation_id)
-    language = conversation.get('language', 'English')
-    gpt_response = await get_police_helpdesk_response(query=message, language=language)
+    if (body.get('type', '') != "text") or message_lower == "hi" or message_lower == "start" or message_lower == "hello":
+        return {"reply": ""}
+
+    # conversation = await get_conversation_by_id(ddb, conversation_id)
+    # language = conversation.get('language', 'English')
+    gpt_response = await get_police_helpdesk_response(query=message, language="English")
     
     # # Send response to WhatsApp via WATI API
     wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
