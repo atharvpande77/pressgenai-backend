@@ -121,8 +121,8 @@ def reset(session_id: str):
     return {"status": "reset"}
 
 
-@router.post("/police/wati/chat/webhook")
-async def police_whatsapp_chat_webhook(language: str, message: str, request: Request):
+@router.post("/police/wati/chat/webhook/{phone}")
+async def police_whatsapp_chat_webhook(language: str, message: str, phone: str):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
@@ -131,19 +131,19 @@ async def police_whatsapp_chat_webhook(language: str, message: str, request: Req
     
     # message = body.get("text", "")
     # language = body.get("language", "English")
-    wa_id = body.get("waId")
+    # wa_id = body.get("waId")
     
     # if not message:
     #     raise HTTPException(status_code=400, detail="Message is required")
     
-    if not wa_id:
-        raise HTTPException(status_code=400, detail="waId is required")
+    # if not wa_id:
+    #     raise HTTPException(status_code=400, detail="waId is required")
     
     # Get GPT response
     gpt_response = await get_police_helpdesk_response(query=message, language=language)
     
     # Send response to WhatsApp via WATI API
-    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{wa_id}"
+    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
     
     async with httpx.AsyncClient() as http_client:
         wati_response = await http_client.post(
