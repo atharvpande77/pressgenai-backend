@@ -143,7 +143,7 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
     if len(phone) == 10:
         phone = "+91" + phone
 
-    if (body.get('type', '') != "text") or message_lower == "hi" or message_lower == "start" or message_lower == "hello":
+    if (body.get('type', '') != "text") or message_lower == "hi" or message_lower == "start" or message_lower == "hello" or message_lower == 'exit':
         return {"reply": ""}
 
     # conversation = await get_conversation_by_id(ddb, conversation_id)
