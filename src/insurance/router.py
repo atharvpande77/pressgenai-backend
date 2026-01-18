@@ -183,7 +183,7 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
             final_message = f"""
                 You are currently in jurisdiction of: {juridiction_station.get("name", "unknown")}
                 Address: {juridiction_station.get("address", "N/A")}
-                Google Maps Link: {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate" if not juridiction_station}
+                Google Maps Link: {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate" if not juridiction_station else 'N/A'}
                 
                 
                 Nearest police station: {nearest_station.get("name", "unknown")} ({(nearest_station.get("distance_meters", 0)/1000).__format__(".2f")} km away)
