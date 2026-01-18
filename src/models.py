@@ -1,6 +1,6 @@
 from src.config.database import Base
 
-from sqlalchemy import Column, UUID, String, Integer
+from sqlalchemy import Column, UUID, String, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ENUM, TEXT, BOOLEAN, ARRAY
 from sqlalchemy import text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -232,4 +232,6 @@ class PoliceStations(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
     name = Column(String(200))
     boundary = Column(Geometry(geometry_type='POLYGON', srid=4326))
+    lat = Column(Float)
+    lon = Column(Float)
 

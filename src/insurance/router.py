@@ -3,12 +3,15 @@ from openai import OpenAI
 import time
 import httpx
 from sse_starlette.sse import EventSourceResponse
+from typing import Annotated
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
 from src.insurance.session_store import get_or_create_thread, reset_session
 from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id
-from src.aws.client import get_ddb_client
+from src.config.database import get_session
+from src.insurance.utils import parse_gps_coords
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -135,7 +138,7 @@ from src.insurance.utils import parse_gps_coords
 
 
 @router.post("/police/wati/chat/webhook")
-async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_client)):
+async def police_whatsapp_chat_webhook(request: Request, session: Annotated[AsyncSession, Depends(get_session)]):
     """
     Webhook endpoint for police WhatsApp chat via WATI.
     Expects JSON body with 'message', 'waId', and optional 'language' fields.
@@ -182,6 +185,10 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
 
     if message_type == 'location':
         lat, lon = parse_gps_coords(message)
+        if not lat:
+            raise HTTPException(status_code=400, detail="Invalid GPS coordinates")
+        
+        # await get_curr_location_jurisdiction(session, lat, lon)
         
         
     
