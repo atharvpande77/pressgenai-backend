@@ -149,7 +149,7 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
     message_type = body.get("type")
         # conversation_id = body.get("conversationId")
     
-    await send_payload_to_request_bin(body)
+    # await send_payload_to_request_bin(body)
     
     if not message or not phone:
         raise HTTPException(status_code=400, detail="Phone and text are required")
@@ -172,6 +172,8 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
         lat, lon = parse_gps_coords(message)
         if not lat:
             raise HTTPException(status_code=400, detail="Invalid GPS coordinates")
+        
+        await send_payload_to_request_bin({"type": "location", "lat": lat, "lon": lon})
         
         station_info = await get_curr_location_jurisdiction_and_nearest_station(session, lat, lon)
         
