@@ -133,9 +133,8 @@ async def send_payload_to_request_bin(body: dict):
             headers={"Content-Type": "application/json"}
         )
 
-
 from src.insurance.utils import parse_gps_coords
-
+from src.insurance.service import get_curr_location_jurisdiction_and_nearest_station
 
 @router.post("/police/wati/chat/webhook")
 async def police_whatsapp_chat_webhook(request: Request, session: Annotated[AsyncSession, Depends(get_session)]):
@@ -188,7 +187,7 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
         if not lat:
             raise HTTPException(status_code=400, detail="Invalid GPS coordinates")
         
-        # await get_curr_location_jurisdiction(session, lat, lon)
+        station_info = await get_curr_location_jurisdiction_and_nearest_station(session, lat, lon)
         
         
     

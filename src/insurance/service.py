@@ -104,3 +104,69 @@ async def get_conversation_by_id(ddb, conversation_id: str) -> dict:
     table = await ddb.Table(TABLE_NAME)
     response = await table.get_item(Key={"conversation_id": conversation_id})
     return response.get("Item", {"language": "English"})
+
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+
+async def get_station_info_simple(session: AsyncSession, lat: float, lon: float):
+    """
+    Get both containing and nearest police station.
+    Simpler version with two separate queries.
+    """
+    # Query 1: Find containing station
+    containing_result = await session.execute(
+        text("""
+            SELECT 
+                id,
+                name,
+                lat,
+                lon
+            FROM police_stations
+            WHERE ST_Contains(
+                boundary,
+                ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
+            )
+            LIMIT 1
+        """),
+        {"lat": lat, "lon": lon}
+    )
+    containing_station = containing_result.fetchone()
+    
+    # Query 2: Find nearest station by lat/lon
+    nearest_result = await session.execute(
+        text("""
+            SELECT 
+                id,
+                name,
+                lat,
+                lon,
+                ST_Distance(
+                    ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+                ) as distance_meters
+            FROM police_stations
+            WHERE lat IS NOT NULL AND lon IS NOT NULL
+            ORDER BY ST_SetSRID(ST_MakePoint(lon, lat), 4326) <-> 
+                     ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
+            LIMIT 1
+        """),
+        {"lat": lat, "lon": lon}
+    )
+    nearest_station = nearest_result.fetchone()
+    
+    return {
+        "containing_station": {
+            "id": str(containing_station.id),
+            "name": containing_station.name,
+            "lat": containing_station.lat,
+            "lon": containing_station.lon
+        } if containing_station else None,
+        "nearest_station": {
+            "id": str(nearest_station.id),
+            "name": nearest_station.name,
+            "lat": nearest_station.lat,
+            "lon": nearest_station.lon,
+            "distance_meters": float(nearest_station.distance_meters)
+        } if nearest_station else None
+    }
