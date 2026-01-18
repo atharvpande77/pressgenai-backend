@@ -109,7 +109,7 @@ async def get_conversation_by_id(ddb, conversation_id: str) -> dict:
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-async def get_station_info_simple(session: AsyncSession, lat: float, lon: float):
+async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSession, lat: float, lon: float):
     """
     Get both containing and nearest police station.
     Simpler version with two separate queries.
@@ -120,6 +120,7 @@ async def get_station_info_simple(session: AsyncSession, lat: float, lon: float)
             SELECT 
                 id,
                 name,
+                address,
                 lat,
                 lon
             FROM police_stations
@@ -139,6 +140,7 @@ async def get_station_info_simple(session: AsyncSession, lat: float, lon: float)
             SELECT 
                 id,
                 name,
+                address,
                 lat,
                 lon,
                 ST_Distance(
@@ -159,14 +161,45 @@ async def get_station_info_simple(session: AsyncSession, lat: float, lon: float)
         "containing_station": {
             "id": str(containing_station.id),
             "name": containing_station.name,
+            "address": containing_station.address,
             "lat": containing_station.lat,
             "lon": containing_station.lon
         } if containing_station else None,
         "nearest_station": {
             "id": str(nearest_station.id),
             "name": nearest_station.name,
+            "address": nearest_station.address,
             "lat": nearest_station.lat,
             "lon": nearest_station.lon,
             "distance_meters": float(nearest_station.distance_meters)
         } if nearest_station else None
     }
+    
+import httpx
+from fastapi import HTTPException
+from src.config.settings import settings
+
+async def send_message_to_user(message: str, phone: str):
+    # # Send response to WhatsApp via WATI API
+    WATI_API_BASE_URL = "https://live-mt-server.wati.io"
+    wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
+    
+    async with httpx.AsyncClient() as http_client:
+        try:
+            wati_response = await http_client.post(
+                wati_url,
+                params={"messageText": message},
+                headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
+            )
+        
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to send message via WATI: {e.response.text}"
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Error connecting to WATI API: {str(e)}"
+            )
+    

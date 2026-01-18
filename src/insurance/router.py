@@ -5,6 +5,7 @@ import httpx
 from sse_starlette.sse import EventSourceResponse
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
+from urllib.parse import quote_plus
 
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse
@@ -18,7 +19,6 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 router = APIRouter()
 TYPING_DELAY = 0.005  # seconds per character
-WATI_API_BASE_URL = "https://live-mt-server.wati.io"
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
@@ -134,7 +134,7 @@ async def send_payload_to_request_bin(body: dict):
         )
 
 from src.insurance.utils import parse_gps_coords
-from src.insurance.service import get_curr_location_jurisdiction_and_nearest_station
+from src.insurance.service import get_curr_location_jurisdiction_and_nearest_station, send_message_to_user
 
 @router.post("/police/wati/chat/webhook")
 async def police_whatsapp_chat_webhook(request: Request, session: Annotated[AsyncSession, Depends(get_session)]):
@@ -164,23 +164,9 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
     if message_type == 'text' and message_lower not in BLOCKED_INPUTS:
         gpt_response = await get_police_helpdesk_response(query=message)
         
-        # # Send response to WhatsApp via WATI API
-        wati_url = f"{WATI_API_BASE_URL}/{settings.WATI_TENANT_ID}/api/v1/sendSessionMessage/{phone}"
-        
-        async with httpx.AsyncClient() as http_client:
-            wati_response = await http_client.post(
-                wati_url,
-                params={"messageText": gpt_response},
-                headers={"Authorization": settings.WATI_API_ACCESS_TOKEN}
-            )
-            
-            if wati_response.status_code != 200:
-                raise HTTPException(
-                    status_code=502, 
-                    detail=f"Failed to send message via WATI: {wati_response.text}"
-                )
+        await send_message_to_user(message=gpt_response, phone=phone)
                 
-        return {"status": "ok"}
+        return {"status": "sent"}
 
     if message_type == 'location':
         lat, lon = parse_gps_coords(message)
@@ -189,8 +175,24 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
         
         station_info = await get_curr_location_jurisdiction_and_nearest_station(session, lat, lon)
         
+        juridiction_station = station_info.get("containing_station", {})
+        nearest_station = station_info.get("nearest_station", {})
         
-    
+        final_message = f"""
+            You are currently in jurisdiction of:\n
+            {juridiction_station.get("name", "unknown")}\n
+            Address: {juridiction_station.get("address", "N/A")}\n\n
+            Google Maps Link: https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate
+            \n\n           
+            
+            Nearest police station: {nearest_station.get("name", "unknown")} ({(nearest_station.get("distance_meters", 0)/1000).__format__(".2f")} km away)\n
+            Google Maps Link: https://www.google.com/maps/dir/?api=1&destination={quote_plus(nearest_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate
+        """
+        
+        await send_message_to_user(message=final_message, phone=phone)
+        
+        return {"status": "sent"}
+        
     return {"status": "ignored"}
         
     
