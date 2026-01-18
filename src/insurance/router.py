@@ -131,6 +131,9 @@ async def send_payload_to_request_bin(body: dict):
         )
 
 
+from src.insurance.utils import parse_gps_coords
+
+
 @router.post("/police/wati/chat/webhook")
 async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_client)):
     """
@@ -178,7 +181,9 @@ async def police_whatsapp_chat_webhook(request: Request, ddb=Depends(get_ddb_cli
         return {"status": "ok"}
 
     if message_type == 'location':
-            ...
+        lat, lon = parse_gps_coords(message)
+        
+        
     
     return {"status": "ignored"}
         

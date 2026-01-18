@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ENUM, TEXT, BOOLEAN,
 from sqlalchemy import text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy import func
+from geoalchemy2 import Geometry
 from enum import Enum
 import uuid
 
@@ -222,3 +223,13 @@ class Authors(Base):
         "GeneratedUserStories", back_populates="author", lazy="selectin"
     )
     
+    
+# Police Whatsapp Chatbot Tables
+
+class PoliceStations(Base):
+    __tablename__ = "police_stations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    name = Column(String(200))
+    boundary = Column(Geometry(geometry_type='POLYGON', srid=4326))
+
