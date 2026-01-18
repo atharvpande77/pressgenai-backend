@@ -181,14 +181,13 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
             nearest_station = station_info.get("nearest_station", {})
             
             final_message = f"""
-                You are currently in jurisdiction of:\n
-                {juridiction_station.get("name", "unknown")}\n
-                Address: {juridiction_station.get("address", "N/A")}\n\n
-                Google Maps Link: https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate
-                \n\n           
+                You are currently in jurisdiction of: {juridiction_station.get("name", "unknown")}
+                Address: {juridiction_station.get("address", "N/A")}
+                Google Maps Link: {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate" if juridiction_station is not None else 'N/A'}
                 
-                Nearest police station: {nearest_station.get("name", "unknown")} ({(nearest_station.get("distance_meters", 0)/1000).__format__(".2f")} km away)\n
-                Google Maps Link: https://www.google.com/maps/dir/?api=1&destination={quote_plus(nearest_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate
+                
+                Nearest police station: {nearest_station.get("name", "unknown")} ({(nearest_station.get("distance_meters", 0)/1000).__format__(".2f")} km away)
+                Google Maps Link: {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(nearest_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate" if nearest_station is not None else 'N/A'}
             """
         except Exception as e:
             await send_payload_to_request_bin({"type": "location", "lat": lat, "lon": lon, "station_info": station_info, "error": str(e)})
