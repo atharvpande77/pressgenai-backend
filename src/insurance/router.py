@@ -192,7 +192,10 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
         except Exception as e:
             await send_payload_to_request_bin({"type": "location", "lat": lat, "lon": lon, "station_info": station_info, "error": str(e)})
         
-        await send_message_to_user(message=final_message, phone=phone)
+        try:
+            await send_message_to_user(message=final_message, phone=phone)
+        except Exception as e:
+            await send_payload_to_request_bin({"final_message": final_message})
         
         return {"status": "sent"}
         
