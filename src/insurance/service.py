@@ -122,7 +122,14 @@ async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSessi
                 name,
                 address,
                 lat,
-                lon
+                lon,
+                pi_name,
+                pi_phone,
+                zone,
+                ST_Distance(
+    #                 ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
+    #                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+    #             ) as distance_meters
             FROM police_stations
             WHERE ST_Contains(
                 boundary,
@@ -135,27 +142,27 @@ async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSessi
     containing_station = containing_result.fetchone()
     
     # Query 2: Find nearest station by lat/lon
-    nearest_result = await session.execute(
-        text("""
-            SELECT 
-                id,
-                name,
-                address,
-                lat,
-                lon,
-                ST_Distance(
-                    ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
-                    ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
-                ) as distance_meters
-            FROM police_stations
-            WHERE lat IS NOT NULL AND lon IS NOT NULL
-            ORDER BY ST_SetSRID(ST_MakePoint(lon, lat), 4326) <-> 
-                     ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
-            LIMIT 1
-        """),
-        {"lat": lat, "lon": lon}
-    )
-    nearest_station = nearest_result.fetchone()
+    # nearest_result = await session.execute(
+    #     text("""
+    #         SELECT 
+    #             id,
+    #             name,
+    #             address,
+    #             lat,
+    #             lon,
+    #             ST_Distance(
+    #                 ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
+    #                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+    #             ) as distance_meters
+    #         FROM police_stations
+    #         WHERE lat IS NOT NULL AND lon IS NOT NULL
+    #         ORDER BY ST_SetSRID(ST_MakePoint(lon, lat), 4326) <-> 
+    #                  ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)
+    #         LIMIT 1
+    #     """),
+    #     {"lat": lat, "lon": lon}
+    # )
+    # nearest_station = nearest_result.fetchone()
     
     return {
         "containing_station": {
@@ -163,16 +170,20 @@ async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSessi
             "name": containing_station.name,
             "address": containing_station.address,
             "lat": containing_station.lat,
-            "lon": containing_station.lon
+            "lon": containing_station.lon,
+            "pi_name": containing_station.pi_name,
+            "pi_phone": containing_station.pi_phone,
+            "zone": containing_station.zone,
+            "distance_meters": float(containing_station.distance_meters)
         } if containing_station else {},
-        "nearest_station": {
-            "id": str(nearest_station.id),
-            "name": nearest_station.name,
-            "address": nearest_station.address,
-            "lat": nearest_station.lat,
-            "lon": nearest_station.lon,
-            "distance_meters": float(nearest_station.distance_meters)
-        } if nearest_station else {},
+        # "nearest_station": {
+        #     "id": str(nearest_station.id),
+        #     "name": nearest_station.name,
+        #     "address": nearest_station.address,
+        #     "lat": nearest_station.lat,
+        #     "lon": nearest_station.lon,
+        #     "distance_meters": float(nearest_station.distance_meters)
+        # } if nearest_station else {},
     }
     
 import httpx
