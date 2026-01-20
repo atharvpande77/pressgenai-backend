@@ -173,8 +173,10 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
         if not lat:
             raise HTTPException(status_code=400, detail="Invalid GPS coordinates")
         
-        
-        station_info = await get_curr_location_jurisdiction_and_nearest_station(session, lat, lon)
+        try:
+            station_info = await get_curr_location_jurisdiction_and_nearest_station(session, lat, lon)
+        except Exception as e:
+            await send_payload_to_request_bin({"type": "location", "lat": lat, "lon": lon, "error": str(e)})
         
         # Nearest police station: {nearest_station.get("name", "unknown")} ({(nearest_station.get("distance_meters", 0)/1000).__format__(".2f")} km away)
         #         Google Maps Link: {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(nearest_station.get("address", 'N/A'))}&travelmode=driving&dir_action=navigate" if nearest_station else 'N/A'}
