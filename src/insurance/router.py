@@ -187,19 +187,19 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
             
             final_message = f"""🚓 *Police Station Information*
 
-            📍 *Station:* {juridiction_station.get("name", "Unknown")}
-            📏 *Distance:* {(juridiction_station.get("distance_meters", 0)/1000):.2f} km away
+📍 *Station:* {juridiction_station.get("name", "Unknown")}
+📏 *Distance:* {(juridiction_station.get("distance_meters", 0)/1000):.2f} km away
 
-            👮 *Police Inspector (PI)*
-            - Name: {juridiction_station.get("pi_name", "N/A")}
-            - Phone: {juridiction_station.get("pi_phone", "N/A")}
+👮 *Police Inspector (PI)*
+- Name: {juridiction_station.get("pi_name", "N/A")}
+- Phone: {juridiction_station.get("pi_phone", "N/A")}
 
-            🗺️ *Location Details*
-            - Zone: {juridiction_station.get("zone", "N/A")}
-            - Address: {juridiction_station.get("address", "N/A")}
+🗺️ *Location Details*
+- Zone: {juridiction_station.get("zone", "N/A")}
+- Address: {juridiction_station.get("address", "N/A")}
 
-            📌 *Navigate:*
-            {f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get('address', 'N/A'))}&travelmode=driving&dir_action=navigate" if juridiction_station.get("address") else "N/A"}
+📌 *Navigate:*
+{f"https://www.google.com/maps/dir/?api=1&destination={quote_plus(juridiction_station.get('address', 'N/A'))}&travelmode=driving&dir_action=navigate" if juridiction_station.get("address") else "N/A"}
             """
         except Exception as e:
             await send_payload_to_request_bin({"type": "location", "lat": lat, "lon": lon, "station_info": station_info, "error": str(e)})
