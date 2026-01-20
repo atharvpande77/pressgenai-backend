@@ -127,9 +127,9 @@ async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSessi
                 pi_phone,
                 zone,
                 ST_Distance(
-    #                 ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
-    #                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
-    #             ) as distance_meters
+                    ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography,
+                     ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+                 ) as distance_meters
             FROM police_stations
             WHERE ST_Contains(
                 boundary,
