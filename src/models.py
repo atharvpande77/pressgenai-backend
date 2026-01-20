@@ -235,4 +235,7 @@ class PoliceStations(Base):
     boundary = Column(Geometry(geometry_type='POLYGON', srid=4326))
     lat = Column(Float)
     lon = Column(Float)
+    pi_name = Column(String(100))
+    pi_phone = Column(String(20))
+    zone = Column(String(100))
 
