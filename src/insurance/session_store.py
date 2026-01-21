@@ -4,7 +4,7 @@ from src.config.settings import settings
 sessions = {}
 sessions_lock = threading.Lock()
 
-assistant_id_map = {"retirement": settings.RETIREMENT_PLANNING_ASSISTANT_ID, "child_education": settings.CHILD_EDUCATION_PLANNING_ASSISTANT_ID, "term_insurance": settings.TERM_INSURANCE_ASSISTANT_ID}
+assistant_id_map = {"retirement": settings.RETIREMENT_PLANNING_ASSISTANT_ID, "child_education": settings.CHILD_EDUCATION_PLANNING_ASSISTANT_ID, "term_insurance": settings.TERM_INSURANCE_ASSISTANT_ID, "tax": settings.TAX_PLANNING_ASSISTANT_ID}
 
 def get_or_create_thread(session_id: str, goal: str | None, client):
     with sessions_lock:
