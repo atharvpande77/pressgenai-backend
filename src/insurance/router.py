@@ -152,7 +152,7 @@ async def police_whatsapp_chat_webhook(request: Request, session: Annotated[Asyn
     # await send_payload_to_request_bin(body)
     
     if not message or not phone:
-        raise HTTPException(status_code=400, detail="Phone and text are required")
+        return {"status": "ignored"}
     
     message_lower = message.lower()
     # Get GPT response
