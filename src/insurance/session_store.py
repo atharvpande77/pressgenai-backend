@@ -63,7 +63,7 @@ def get_or_create_thread(session_id: str, goal: str | None, client):
                 "thread_id": thread.id,
                 "goal": goal,
                 "goal_injected": False,
-                "assistant_id": assistant_id_map.get(goal, settings.RETIREMENT_PLANNING_ASSISTANT_ID),
+                "assistant_id": assistant_id_map.get(goal, {}).get("assistant_id", settings.RETIREMENT_PLANNING_ASSISTANT_ID),
                 "first_session_message": assistant_id_map.get(goal, {}).get("first_session_message", "")
             }
         return sessions[session_id]
