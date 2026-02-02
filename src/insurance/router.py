@@ -81,6 +81,13 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
     # if session["goal"] and not session.get("goal_injected"):
     #     inject_initial_context(thread_id, session["goal"], client)
     #     session["goal_injected"] = True
+    
+    
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="assistant",
+        content=session.get("first_session_message", "")
+    )
         
     client.beta.threads.messages.create(
         thread_id=thread_id,
