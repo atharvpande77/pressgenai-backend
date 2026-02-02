@@ -50,7 +50,8 @@ assistant_id_map = {
         
         It’ll take just 2–3 minutes. Shall we begin?
         """
-    }
+    },
+    "savings": {}
 }
 
 
@@ -64,7 +65,7 @@ def get_or_create_thread(session_id: str, goal: str | None, client):
                 "goal": goal,
                 "goal_injected": False,
                 "assistant_id": assistant_id_map.get(goal, {}).get("assistant_id", settings.RETIREMENT_PLANNING_ASSISTANT_ID),
-                "first_session_message": assistant_id_map.get(goal, {}).get("first_session_message", "")
+                "first_session_message": assistant_id_map.get(goal, {}).get("first_session_message", assistant_id_map["retirement"]["first_session_message"])
             }
         return sessions[session_id]
 
