@@ -8,50 +8,58 @@ assistant_id_map = {
     "retirement": {
         "assistant_id": settings.RETIREMENT_PLANNING_ASSISTANT_ID,
         "first_session_message": """
-        👋 Hi  
-        I'm the digital assistant for Mr. Rahul Verma, a licensed life insurance advisor with Bajaj Life Insurance, with over 7 years of experience.
+        👋 Hello!
+        I am the digital assistant for Mr. Varad Joshi, a renowned financial planner.
+        I will help you plan your retirement in a simple and structured way.
 
-        📋 **Just so you know:** This is for awareness and education only. All numbers are indicative and based on your inputs. No actual selling - just helpful guidance.
-
-        Before we begin, please choose your language:
-        🇬🇧 English / 🇮🇳 Hindi / 🇮🇳 Marathi?
+        Please choose your preferred language:
+        English | Hindi | Marathi
         """
     },
     "child_education": {
         "assistant_id": settings.CHILD_EDUCATION_PLANNING_ASSISTANT_ID,
         "first_session_message": """
-        Hello! I'm here to help you plan for your child's education. Let's explore the best options for their future.
-        
-        📋 **Just so you know:** This is for awareness and education only. All numbers are indicative and based on your inputs. No actual selling - just helpful guidance.
-        
-        May I know your name please?
+        👋 Hello!
+        I am the digital assistant for Mr. Varad Joshi, a renowned financial planner.
+        I will help you plan your child's education in a simple and structured way.
+
+        Please choose your preferred language:
+        English | Hindi | Marathi
         """
     },
     "term_insurance": {
         "assistant_id": settings.TERM_INSURANCE_ASSISTANT_ID,
         "first_session_message": """
-        👋 Hello  
+        👋 Hello!
+        I am the digital assistant for Mr. Varad Joshi, a renowned financial planner.
+        I will help you plan your term insurance in a simple and structured way.
 
-        I’m the digital assistant for Mr. Rahul Verma, a licensed life insurance advisor with Bajaj Life Insurance, with over 7 years of experience.
-        
-        📋 **Just so you know:** This is for awareness and education only. All numbers are indicative and based on your inputs. No actual selling - just helpful guidance.
-
-        Before we begin, which language are you most comfortable with?
-        English / Hindi / Marathi"""
+        Please choose your preferred language:
+        English | Hindi | Marathi
+        """
     },
     "tax": {
         "assistant_id": settings.TAX_PLANNING_ASSISTANT_ID,
         "first_session_message": """
-        Hi! 👋  
-        
-        I’m the digital assistant for Mr. Rahul Verma, a licensed life insurance advisor with Bajaj Life Insurance, with over 7 years of experience.
-        
-        📋 **Just so you know:** This is for awareness and education only. All numbers are indicative and based on your inputs. No actual selling - just helpful guidance.
-        
-        It’ll take just 2–3 minutes. Shall we begin?
+        👋 Hello!
+        I am the digital assistant for Mr. Varad Joshi, a renowned financial planner.
+        I will help you plan your taxes in a simple and structured way.
+
+        Please choose your preferred language:
+        English | Hindi | Marathi
         """
     },
-    "savings": {}
+    "savings": {
+        "assistant_id": settings.RETIREMENT_PLANNING_ASSISTANT_ID,
+        "first_session_message": """
+        👋 Hello!
+        I am the digital assistant for Mr. Varad Joshi, a renowned financial planner.
+        I will help you plan your savings in a simple and structured way.
+
+        Please choose your preferred language:
+        English | Hindi | Marathi
+        """
+    }
 }
 
 
