@@ -214,3 +214,10 @@ async def send_message_to_user(message: str, phone: str):
                 detail=f"Error connecting to WATI API: {str(e)}"
             )
     
+    
+async def extract_fields(
+    user_message: str,
+    assistant_message: str,
+    session: dict
+):
+    ...

@@ -71,7 +71,7 @@ def get_or_create_thread(session_id: str, goal: str | None, client):
             sessions[session_id] = {
                 "thread_id": thread.id,
                 "goal": goal,
-                "goal_injected": False,
+                "first_message_injected": False,
                 "assistant_id": assistant_id_map.get(goal, {}).get("assistant_id", settings.RETIREMENT_PLANNING_ASSISTANT_ID),
                 "first_session_message": assistant_id_map.get(goal, {}).get("first_session_message", assistant_id_map["retirement"]["first_session_message"])
             }

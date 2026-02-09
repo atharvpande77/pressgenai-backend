@@ -20,6 +20,32 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 router = APIRouter()
 TYPING_DELAY = 0.001  # seconds per character
 
+
+def cancel_active_runs(thread_id: str):
+    """
+    Check for any active runs on the thread and cancel them.
+    This prevents the "Can't add messages to thread while a run is active" error.
+    """
+    try:
+        runs = client.beta.threads.runs.list(thread_id=thread_id, limit=10)
+        for run in runs.data:
+            if run.status in ["in_progress", "queued", "requires_action", "pending"]:
+                try:
+                    client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
+                    # Wait briefly for cancellation to take effect
+                    max_wait = 5  # max 5 seconds
+                    waited = 0
+                    while waited < max_wait:
+                        run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+                        if run_status.status in ["cancelled", "failed", "completed", "expired"]:
+                            break
+                        time.sleep(0.3)
+                        waited += 0.3
+                except Exception as e:
+                    print(f"Failed to cancel run {run.id}: {e}")
+    except Exception as e:
+        print(f"Error checking for active runs: {e}")
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     # if not ASSISTANT_ID:
@@ -77,50 +103,167 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
     session = get_or_create_thread(session_id, goal, client)
     thread_id = session["thread_id"]
 
-    # Inject goal only once
-    # if session["goal"] and not session.get("goal_injected"):
-    #     inject_initial_context(thread_id, session["goal"], client)
-    #     session["goal_injected"] = True
+    # Cancel any active runs before adding new messages
+    cancel_active_runs(thread_id)
+
+    # Inject icebreaker message only once
+    if session["goal"] and not session.get("first_message_injected"):
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="assistant",
+            content=session.get("first_session_message", "")
+        )
+        session["first_message_injected"] = True
     
-    
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="assistant",
-        content=session.get("first_session_message", "")
-    )
-        
-    client.beta.threads.messages.create(
+    user_msg_object = client.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
         content=message
     )
     
-    def event_generator():
-        # Create run with streaming enabled
+    async def event_generator():
+    # Create run with streaming enabled
+    
+        current_assistant_message = ""
+        tool_calls = []
+        current_tool_call_index = None
+        
         with client.beta.threads.runs.stream(
             thread_id=thread_id,
             assistant_id=session["assistant_id"]
         ) as stream:
             for event in stream:
-                # We only care about incremental text
+                
+                # Handle text deltas
                 if event.event == "thread.message.delta":
                     delta = event.data.delta
                     if delta.content:
                         for block in delta.content:
                             if block.type == "text":
+                                current_assistant_message += block.text.value
                                 for char in block.text.value:
                                     yield {
                                         "event": "message",
                                         "data": char
                                     }
                                     time.sleep(TYPING_DELAY)
-
-                # End signal
+                
+                # Handle function call requests
+                if event.event == "thread.run.requires_action":
+                    # Extract the tool calls
+                    required_action = event.data.required_action
+                    
+                    if required_action.type == "submit_tool_outputs":
+                        tool_calls = required_action.submit_tool_outputs.tool_calls
+                        
+                        # Process each tool call
+                        tool_outputs = []
+                        for tool_call in tool_calls:
+                            if tool_call.function.name == "extract_user_data":
+                                # Parse the function arguments
+                                import json
+                                import re
+                                function_args = json.loads(tool_call.function.arguments)
+                                
+                                print(f"[extract_user_data] User message: '{message}'")
+                                print(f"[extract_user_data] Received args: {function_args}")
+                                
+                                # Validate that extracted values actually exist in the user's message
+                                # This prevents the assistant from fabricating values
+                                def validate_extraction(args: dict, user_message: str) -> bool:
+                                    """Check if any extracted numeric value is actually in the user's message."""
+                                    user_msg_lower = user_message.lower().strip()
+                                    
+                                    # Extract all numbers from the user's message
+                                    numbers_in_message = set(re.findall(r'\d+', user_message))
+                                    
+                                    # If user just selected language, no numeric data should be extracted
+                                    language_responses = {'english', 'hindi', 'marathi', 'en', 'hi', 'mr'}
+                                    if user_msg_lower in language_responses:
+                                        return False
+                                    
+                                    # Check if any extracted numeric value matches numbers in the message
+                                    for key, value in args.items():
+                                        if value is None or value == "":
+                                            continue
+                                        
+                                        # For numeric fields, verify the number exists in message
+                                        if key in ['age', 'annual_income', 'num_dependents', 'loan_amount']:
+                                            if isinstance(value, (int, float)) and value > 0:
+                                                # Check if this number or a reasonable variant exists
+                                                value_str = str(int(value))
+                                                if not any(num in value_str or value_str in num for num in numbers_in_message):
+                                                    # Number not found in message - likely fabricated
+                                                    print(f"[extract_user_data] REJECTED: {key}={value} not found in message")
+                                                    return False
+                                        
+                                        # For phone number, verify format exists
+                                        if key == 'phone_number' and value:
+                                            if value not in user_message:
+                                                print(f"[extract_user_data] REJECTED: phone not found in message")
+                                                return False
+                                        
+                                        # For first_name, verify it's mentioned
+                                        if key == 'first_name' and value:
+                                            if value.lower() not in user_msg_lower:
+                                                print(f"[extract_user_data] REJECTED: name not found in message")
+                                                return False
+                                    
+                                    return True
+                                
+                                is_valid = validate_extraction(function_args, message)
+                                
+                                if is_valid:
+                                    # Valid data that matches user input
+                                    tool_outputs.append({
+                                        "tool_call_id": tool_call.id,
+                                        "output": json.dumps({"status": "success", "message": "Data captured successfully"})
+                                    })
+                                else:
+                                    # Data doesn't match user's message - reject it
+                                    tool_outputs.append({
+                                        "tool_call_id": tool_call.id,
+                                        "output": json.dumps({
+                                            "status": "error",
+                                            "message": "ERROR: The user has not provided this information yet. Do NOT extract data the user has not explicitly stated. Ask the question and wait for the user's response in the next message."
+                                        })
+                                    })
+                        
+                        # Submit the tool outputs back to continue the run
+                        with client.beta.threads.runs.submit_tool_outputs_stream(
+                            thread_id=thread_id,
+                            run_id=event.data.id,
+                            tool_outputs=tool_outputs
+                        ) as tool_stream:
+                            # Continue streaming the assistant's response
+                            for tool_event in tool_stream:
+                                if tool_event.event == "thread.message.delta":
+                                    delta = tool_event.data.delta
+                                    if delta.content:
+                                        for block in delta.content:
+                                            if block.type == "text":
+                                                current_assistant_message += block.text.value
+                                                for char in block.text.value:
+                                                    yield {
+                                                        "event": "message",
+                                                        "data": char
+                                                    }
+                                                    time.sleep(TYPING_DELAY)
+                                
+                                if tool_event.event == "thread.run.completed":
+                                    yield {
+                                        "event": "done",
+                                        "data": ""
+                                    }
+                
+                # End signal (only if no tool calls were made)
                 if event.event == "thread.run.completed":
                     yield {
                         "event": "done",
                         "data": ""
                     }
+                    
+    # print(f"Chat response for user message '{message}': {chat_response}")
 
     return EventSourceResponse(event_generator())
 
