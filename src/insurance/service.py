@@ -221,3 +221,47 @@ async def extract_fields(
     session: dict
 ):
     ...
+    
+
+from sqlalchemy import update, and_, select
+from src.models import ChatSessions
+    
+async def update_chat_session_with_extracted_data(
+    db: AsyncSession,
+    session_id: str,
+    thread_id: str,
+    function_args: dict
+):
+    name = function_args.get("name") or function_args.get("first_name")
+    phone = function_args.get("phone_number")
+    
+    phone = f"+91{phone[-10:]}" if phone else None
+    
+    other_data_collected = {k: v for k, v in function_args.items() if k not in ["name", "first_name", "phone_number"]}
+    
+    await db.execute(
+        update(ChatSessions)
+            .where(and_(ChatSessions.session_id == session_id, ChatSessions.thread_id == thread_id))
+            .values(
+                collected_data=other_data_collected,
+                name=name.capitalize() if name else None,
+                phone=phone,
+                lead_captured=name is not None and phone is not None
+            )
+    )
+    await db.commit()
+    
+    
+async def get_chat_sessions_db(
+    db: AsyncSession,
+    limit: int | None = 10,
+    offset: int | None = 0
+):
+    result = await db.execute(
+        select(ChatSessions)
+            .where(ChatSessions.lead_captured == True)
+            .order_by(ChatSessions.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+    )
+    return result.scalars().all()

@@ -8,35 +8,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from urllib.parse import quote_plus
 
 from src.config.settings import settings
-from src.insurance.schemas import ChatRequest, ChatResponse
-from src.insurance.session_store import get_or_create_thread, reset_session
-from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id
+from src.insurance.schemas import ChatRequest, ChatResponse, ChatSessionResponse
+from src.insurance.session_store import get_or_create_thread
+from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id, update_chat_session_with_extracted_data, get_chat_sessions_db
 from src.config.database import get_session
 from src.insurance.utils import parse_gps_coords
+from src.config.database import get_session
+
+from src.config.openai_client import openai_async_client
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+# client = OpenAI(api_key=settings.OPENAI_API_KEY)
+Session = Annotated[AsyncSession, Depends(get_session)]
 
 router = APIRouter()
 TYPING_DELAY = 0.001  # seconds per character
 
 
-def cancel_active_runs(thread_id: str):
+async def cancel_active_runs(thread_id: str):
     """
     Check for any active runs on the thread and cancel them.
     This prevents the "Can't add messages to thread while a run is active" error.
     """
     try:
-        runs = client.beta.threads.runs.list(thread_id=thread_id, limit=10)
+        runs = await openai_async_client.beta.threads.runs.list(thread_id=thread_id, limit=10)
         for run in runs.data:
             if run.status in ["in_progress", "queued", "requires_action", "pending"]:
                 try:
-                    client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
+                    await openai_async_client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
                     # Wait briefly for cancellation to take effect
                     max_wait = 5  # max 5 seconds
                     waited = 0
                     while waited < max_wait:
-                        run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+                        run_status = await openai_async_client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
                         if run_status.status in ["cancelled", "failed", "completed", "expired"]:
                             break
                         time.sleep(0.3)
@@ -46,76 +50,82 @@ def cancel_active_runs(thread_id: str):
     except Exception as e:
         print(f"Error checking for active runs: {e}")
 
-@router.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
-    # if not ASSISTANT_ID:
-        # raise HTTPException(status_code=500, detail="Assistant not configured")
+# @router.post("/chat", response_model=ChatResponse)
+# def chat(req: ChatRequest, session: Session):
+#     # if not ASSISTANT_ID:
+#         # raise HTTPException(status_code=500, detail="Assistant not configured")
 
-    session = get_or_create_thread(req.session_id, req.goal, client)
-    thread_id = session["thread_id"]
+#     session = get_or_create_thread(req.session_id, req.goal, client)
+#     thread_id = session["thread_id"]
 
-    # Inject goal only once
-    if session["goal"] and not session.get("goal_injected"):
-        inject_initial_context(thread_id, session["goal"], client)
-        session["goal_injected"] = True
+#     # Inject goal only once
+#     if session["goal"] and not session.get("goal_injected"):
+#         inject_initial_context(thread_id, session["goal"], client)
+#         session["goal_injected"] = True
 
-    # Add user message
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=req.message
-    )
+#     # Add user message
+#     client.beta.threads.messages.create(
+#         thread_id=thread_id,
+#         role="user",
+#         content=req.message
+#     )
 
-    # Run assistant
-    run = client.beta.threads.runs.create(
-        thread_id=thread_id,
-        assistant_id=ASSISTANT_ID
-    )
+#     # Run assistant
+#     run = client.beta.threads.runs.create(
+#         thread_id=thread_id,
+#         assistant_id=ASSISTANT_ID
+#     )
 
-    # Poll until completion
-    while True:
-        run_status = client.beta.threads.runs.retrieve(
-            thread_id=thread_id,
-            run_id=run.id
-        )
-        if run_status.status in ["completed", "failed", "cancelled"]:
-            break
-        time.sleep(0.5)
+#     # Poll until completion
+#     while True:
+#         run_status = client.beta.threads.runs.retrieve(
+#             thread_id=thread_id,
+#             run_id=run.id
+#         )
+#         if run_status.status in ["completed", "failed", "cancelled"]:
+#             break
+#         time.sleep(0.5)
 
-    if run_status.status != "completed":
-        raise HTTPException(status_code=500, detail="Assistant run failed")
+#     if run_status.status != "completed":
+#         raise HTTPException(status_code=500, detail="Assistant run failed")
 
-    # Get latest assistant message
-    messages = client.beta.threads.messages.list(thread_id=thread_id)
+#     # Get latest assistant message
+#     messages = client.beta.threads.messages.list(thread_id=thread_id)
 
-    for msg in messages.data:
-        if msg.role == "assistant":
-            return ChatResponse(reply=msg.content[0].text.value)
+#     for msg in messages.data:
+#         if msg.role == "assistant":
+#             return ChatResponse(reply=msg.content[0].text.value)
 
-    raise HTTPException(status_code=500, detail="No assistant response found")
+#     raise HTTPException(status_code=500, detail="No assistant response found")
 
 
 @router.get("/chat/stream")
-async def stream_insurance_chat(session_id: str, message: str, goal: str | None = None):
+async def stream_insurance_chat(
+    db: Session,
+    session_id: str,
+    message: str,
+    goal: str | None = None
+):
     # if not ASSISTANT_ID:
     #     raise HTTPException(status_code=500, detail="Assistant not configured")
 
-    session = get_or_create_thread(session_id, goal, client)
-    thread_id = session["thread_id"]
+    chat_session = await get_or_create_thread(db, session_id, goal, openai_async_client)
+    
+    thread_id = chat_session.thread_id
 
     # Cancel any active runs before adding new messages
-    cancel_active_runs(thread_id)
+    await cancel_active_runs(thread_id)
 
     # Inject icebreaker message only once
-    if session["goal"] and not session.get("first_message_injected"):
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="assistant",
-            content=session.get("first_session_message", "")
-        )
-        session["first_message_injected"] = True
+    # if session["goal"] and not session.get("first_message_injected"):
+    #     client.beta.threads.messages.create(
+    #         thread_id=thread_id,
+    #         role="assistant",
+    #         content=session.get("first_session_message", "")
+    #     )
+    #     session["first_message_injected"] = True
     
-    user_msg_object = client.beta.threads.messages.create(
+    await openai_async_client.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
         content=message
@@ -123,24 +133,20 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
     
     async def event_generator():
     # Create run with streaming enabled
-    
-        current_assistant_message = ""
         tool_calls = []
-        current_tool_call_index = None
+        # current_tool_call_index = None
         
-        with client.beta.threads.runs.stream(
+        async with openai_async_client.beta.threads.runs.stream(
             thread_id=thread_id,
-            assistant_id=session["assistant_id"]
+            assistant_id=chat_session.assistant_id
         ) as stream:
-            for event in stream:
-                
+            async for event in stream:
                 # Handle text deltas
                 if event.event == "thread.message.delta":
                     delta = event.data.delta
                     if delta.content:
                         for block in delta.content:
                             if block.type == "text":
-                                current_assistant_message += block.text.value
                                 for char in block.text.value:
                                     yield {
                                         "event": "message",
@@ -211,6 +217,7 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
                                     
                                     return True
                                 
+                                await update_chat_session_with_extracted_data(db, session_id, thread_id, function_args)
                                 is_valid = validate_extraction(function_args, message)
                                 
                                 if is_valid:
@@ -219,6 +226,8 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
                                         "tool_call_id": tool_call.id,
                                         "output": json.dumps({"status": "success", "message": "Data captured successfully"})
                                     })
+                                    
+                                    
                                 else:
                                     # Data doesn't match user's message - reject it
                                     tool_outputs.append({
@@ -230,19 +239,18 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
                                     })
                         
                         # Submit the tool outputs back to continue the run
-                        with client.beta.threads.runs.submit_tool_outputs_stream(
+                        async with openai_async_client.beta.threads.runs.submit_tool_outputs_stream(
                             thread_id=thread_id,
                             run_id=event.data.id,
                             tool_outputs=tool_outputs
                         ) as tool_stream:
                             # Continue streaming the assistant's response
-                            for tool_event in tool_stream:
+                            async for tool_event in tool_stream:
                                 if tool_event.event == "thread.message.delta":
                                     delta = tool_event.data.delta
                                     if delta.content:
                                         for block in delta.content:
                                             if block.type == "text":
-                                                current_assistant_message += block.text.value
                                                 for char in block.text.value:
                                                     yield {
                                                         "event": "message",
@@ -268,10 +276,14 @@ async def stream_insurance_chat(session_id: str, message: str, goal: str | None 
     return EventSourceResponse(event_generator())
 
 
-@router.post("/reset")
-def reset(session_id: str):
-    reset_session(session_id)
-    return {"status": "reset"}
+@router.get("/chat/sessions", response_model=list[ChatSessionResponse])
+async def get_chat_sessions(
+    db: Session,
+    limit: int | None = 10,
+    offset: int | None = 0
+):
+    chat_sessions = await get_chat_sessions_db(db, limit, offset)
+    return chat_sessions
 
 
 async def send_payload_to_request_bin(body: dict):
