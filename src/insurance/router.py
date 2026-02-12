@@ -174,71 +174,14 @@ async def stream_insurance_chat(
                                 print(f"[extract_user_data] User message: '{message}'")
                                 print(f"[extract_user_data] Received args: {function_args}")
                                 
-                                # Validate that extracted values actually exist in the user's message
-                                # This prevents the assistant from fabricating values
-                                def validate_extraction(args: dict, user_message: str) -> bool:
-                                    """Check if any extracted numeric value is actually in the user's message."""
-                                    user_msg_lower = user_message.lower().strip()
-                                    
-                                    # Extract all numbers from the user's message
-                                    numbers_in_message = set(re.findall(r'\d+', user_message))
-                                    
-                                    # If user just selected language, no numeric data should be extracted
-                                    language_responses = {'english', 'hindi', 'marathi', 'en', 'hi', 'mr'}
-                                    if user_msg_lower in language_responses:
-                                        return False
-                                    
-                                    # Check if any extracted numeric value matches numbers in the message
-                                    for key, value in args.items():
-                                        if value is None or value == "":
-                                            continue
-                                        
-                                        # For numeric fields, verify the number exists in message
-                                        if key in ['age', 'annual_income', 'num_dependents', 'loan_amount']:
-                                            if isinstance(value, (int, float)) and value > 0:
-                                                # Check if this number or a reasonable variant exists
-                                                value_str = str(int(value))
-                                                if not any(num in value_str or value_str in num for num in numbers_in_message):
-                                                    # Number not found in message - likely fabricated
-                                                    print(f"[extract_user_data] REJECTED: {key}={value} not found in message")
-                                                    return False
-                                        
-                                        # For phone number, verify format exists
-                                        if key == 'phone_number' and value:
-                                            if value not in user_message:
-                                                print(f"[extract_user_data] REJECTED: phone not found in message")
-                                                return False
-                                        
-                                        # For first_name, verify it's mentioned
-                                        if key == 'first_name' and value:
-                                            if value.lower() not in user_msg_lower:
-                                                print(f"[extract_user_data] REJECTED: name not found in message")
-                                                return False
-                                    
-                                    return True
-                                
                                 await update_chat_session_with_extracted_data(db, session_id, thread_id, function_args)
-                                is_valid = validate_extraction(function_args, message)
                                 
-                                if is_valid:
-                                    # Valid data that matches user input
-                                    tool_outputs.append({
-                                        "tool_call_id": tool_call.id,
-                                        "output": json.dumps({"status": "success", "message": "Data captured successfully"})
-                                    })
+                                tool_outputs.append({
+                                    "tool_call_id": tool_call.id,
+                                    "output": json.dumps({"status": "success", "message": "Data captured successfully"})
+                                })
                                     
                                     
-                                else:
-                                    # Data doesn't match user's message - reject it
-                                    tool_outputs.append({
-                                        "tool_call_id": tool_call.id,
-                                        "output": json.dumps({
-                                            "status": "error",
-                                            "message": "ERROR: The user has not provided this information yet. Do NOT extract data the user has not explicitly stated. Ask the question and wait for the user's response in the next message."
-                                        })
-                                    })
-                        
-                        # Submit the tool outputs back to continue the run
                         async with openai_async_client.beta.threads.runs.submit_tool_outputs_stream(
                             thread_id=thread_id,
                             run_id=event.data.id,
