@@ -217,14 +217,14 @@ class Authors(Base):
         primary_key=True,
     )
     bio = Column(TEXT, nullable=True)
-    # date_of_birth = Column(DATE, nullable=True)
-    # highest_education = Column(String(50), nullable=True)
-    # highest_education_other_specify = Column(String(100), nullable=True)
-    # work_status = Column(String(50), nullable=True)
-    # work_status_other_specify = Column(String(100), nullable=True)
-    # city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
-    # updated_at = Column(TIMESTAMP, server_onupdate=func.now())
-    # onboarding_completed = Column(BOOLEAN, default=False)
+    date_of_birth = Column(DATE, nullable=True)
+    highest_education = Column(String(50), nullable=True)
+    highest_education_other_specify = Column(String(100), nullable=True)
+    work_status = Column(String(50), nullable=True)
+    work_status_other_specify = Column(String(100), nullable=True)
+    city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=True)
+    updated_at = Column(TIMESTAMP, server_onupdate=func.now())
+    onboarding_completed = Column(BOOLEAN, default=False)
     
     user = relationship("Users", back_populates="author_profile", lazy="selectin")
     user_stories = relationship("UserStories", back_populates="author", lazy="selectin")
@@ -232,54 +232,54 @@ class Authors(Base):
         "GeneratedUserStories", back_populates="author", lazy="selectin"
     )
 
-# class UserLinks(Base):
-#     __tablename__ = "user_links"
+class UserLinks(Base):
+    __tablename__ = "user_links"
 
-#     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-#     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-#     link_type = Column(String(50))
-#     platform = Column(String(50))
-#     url = Column(String(500))
-#     description = Column(String(200))
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    link_type = Column(String(50))
+    platform = Column(String(50))
+    url = Column(String(500))
+    description = Column(String(200))
 
-# class Cities(Base):
-#     __tablename__ = "cities"
+class Cities(Base):
+    __tablename__ = "cities"
     
-#     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-#     name = Column(String(100), nullable=False)
-#     active = Column(BOOLEAN, default=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    name = Column(String(100), nullable=False)
+    active = Column(BOOLEAN, default=True)
 
 
-# class EditorCities(Base):
-#     __tablename__ = "editor_cities"
+class EditorCities(Base):
+    __tablename__ = "editor_cities"
     
-#     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-#     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-#     city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'), nullable=False)
     
-#     __tableargs__ = (
-#         UniqueConstraint('editor_id', 'city_id', name='unique_editor_city'),
-#     )
+    __tableargs__ = (
+        UniqueConstraint('editor_id', 'city_id', name='unique_editor_city'),
+    )
     
     
-# class Categories(Base):
-#     __tablename__ = "categories"
+class Categories(Base):
+    __tablename__ = "categories"
     
-#     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-#     name = Column(String(100), nullable=False)
-#     value = Column(String(100), nullable=False)
-#     active = Column(BOOLEAN, default=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    name = Column(String(100), nullable=False)
+    value = Column(String(100), nullable=False)
+    active = Column(BOOLEAN, default=True)
     
-# class EditorCategories(Base):
-#     __tablename__ = "editor_categories"
+class EditorCategories(Base):
+    __tablename__ = "editor_categories"
     
-#     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-#     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-#     category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
     
-#     __tableargs__ = (
-#         UniqueConstraint('editor_id', 'category_id', name='unique_editor_category'),
-#     )
+    __tableargs__ = (
+        UniqueConstraint('editor_id', 'category_id', name='unique_editor_category'),
+    )
     
 
 ##==Top Advisor Tables==##
