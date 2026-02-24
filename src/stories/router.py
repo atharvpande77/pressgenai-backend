@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import Annotated, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
+from datetime import datetime
 
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys,CreateStoryResponseSchema
+from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys,CreateAIStoryResponse, CreateManualStoryResponse
 from src.stories.service import add_stories_to_db, get_location_status, fetch_stories_from_db, add_location_record, update_location_timestamp, get_story_by_id, create_user_story_db, get_generated_user_story, upsert_answer, generate_and_store_story_questions, get_user_story_or_404, update_user_story_status, get_user_stories_db, get_complete_story_by_id, edit_generated_article_db
 from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story, get_all_news, get_story_status_dep
-from src.models import UserStories, Users, UserRoles, GeneratedUserStories
+from src.models import UserStories, Users, UserRoles, GeneratedUserStories, UserStoryStatus
 from src.auth.dependencies import role_checker
 from src.media.service import check_article_authorization
 from src.stories.dependencies import user_story_mode_checker
@@ -104,12 +105,23 @@ async def generate_article(id: str, options: GenerateOptionsSchema, session: Ann
 @router.get(
     "/user",
     response_model=list[UserStoryItem],
-    summary="List all user stories",
-    description="""
-        Fetch a paginated list of user stories created by status ('draft', 'submitted', 'rejected' or 'published').  
-        Supports `limit` and `offset` for pagination.
-        Returns with limit=10 and offset=0 by default
-    """
+    summary="List all user stories by status",
+    description="""Fetch a paginated list of user stories filtered by status.
+    
+    Filters stories by one of four statuses:
+    - 'draft': Stories in draft state (not yet submitted)
+    - 'submitted': Stories submitted for editor review
+    - 'rejected': Stories rejected by editors with feedback
+    - 'published': Stories approved and published
+    
+    Supports pagination with limit (default 10) and offset (default 0) parameters.
+    Only returns stories created by the authenticated creator.""",
+    responses={
+        200: {"description": "Successfully retrieved stories list"},
+        401: {"description": "Insufficient permissions - Creator role required"},
+        400: {"description": "Invalid status parameter"},
+        500: {"description": "Internal server error while fetching stories"}
+    }
 )
 async def get_user_stories_by_status(session: Session, status: Annotated[Literal['draft', 'submitted', 'rejected', 'published'], Depends(get_story_status_dep)], curr_creator: Annotated[Users, Depends(role_checker('creator'))], limit: int | None = 10, offset: int | None = 0):
     return await get_user_stories_db(
@@ -124,11 +136,24 @@ async def get_user_stories_by_status(session: Session, status: Annotated[Literal
 @router.get(
     "/user/{user_story_id}",
     response_model=UserStoryFullResponseSchema,
-    summary="Retrieve a specific user story",
-    description="""
-        Get details of a single user story by its ID.  
-        Includes metadata such as title, tone, style, language, and context.
-        """
+    summary="Retrieve complete user story details",
+    description="""Fetch detailed information about a specific user story.
+    
+    Returns comprehensive story metadata:
+    - Story mode (ai or manual) and current status
+    - Story context, tone, style, language preferences
+    - Word length and publication status
+    - Associated generated article (if available)
+    - Creation and update timestamps
+    
+    Only the story creator can retrieve their own stories.""",
+    responses={
+        200: {"description": "Successfully retrieved story details"},
+        401: {"description": "Insufficient permissions - Creator role required"},
+        403: {"description": "Cannot retrieve another creator's story"},
+        404: {"description": "User story not found"},
+        500: {"description": "Internal server error while fetching story"}
+    }
 )
 async def get_user_story(session: Session, curr_creator: Annotated[Users, Depends(role_checker('creator'))], user_story_id: str):
     return await get_complete_story_by_id(session, user_story_id, curr_creator.id)
@@ -137,50 +162,21 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
 @router.post(
     "/user",
     status_code=status.HTTP_201_CREATED,
-    response_model=CreateStoryResponseSchema,
-    summary="Create a new story (AI-assisted or manual writing mode)",
+    response_model=CreateAIStoryResponse | CreateManualStoryResponse,
+    summary="Create a new story draft (AI or manual mode)",
     description="""
-        This endpoint initializes a new story draft for a creator.  
+        Create a creator-owned story record in one of two modes.
 
-        The behavior depends on the selected mode:
+        AI mode (`mode="ai"`):
+        - Stores story context and writing preferences (tone/style/language/word_length).
+        - Does not generate article text at this step.
+        - Typical next flow: `/user/{user_story_id}/questions`, answer submission, then `/user/{user_story_id}/generate`.
 
-        ---
+        Manual mode (`mode="manual"`):
+        - Stores the provided draft immediately (`title`, `full_text`, `images_keys`).
+        - Metadata generation (snippet/tags/categories/title refinement) happens later via `/user/{user_story_id}/generate`.
 
-        ### 🔹 AI-Assisted Mode (`mode="ai"`)
-
-        The creator provides:
-        - Context describing the incident or topic
-        - Writing preferences (tone, style, language, length)
-
-        The system stores the story and marks it as ready for:
-        - Question generation (`GET /user/{id}/questions`)
-        - Then full article generation (`GET /user/{id}/generate`)
-
-        No article content is generated at this step.
-
-        ---
-
-        ### 🔹 Manual Mode (`mode="manual"`)
-
-        The creator provides:
-        - The complete article text
-        - (Optional) title and images
-
-        The system stores the content as-is. Metadata such as:
-        - refined title (if needed)
-        - snippet
-        - tags
-        - categories  
-
-        will be generated later using the `GET /user/{id}/generate` endpoint.
-
-        ---
-
-        ### Workflow Result
-
-        This endpoint returns the created story record and its current status.  
-        No AI generation happens here.
-
+        Returns the created draft with status and mode-specific payload.
         """,
     responses={
         201: {
@@ -201,11 +197,11 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
                 }
             },
         },
-        400: {
-            "description": "Invalid input format or missing required fields",
+        422: {
+            "description": "Validation error in request body",
             "content": {
                 "application/json": {
-                    "example": {"detail": "Validation error: context is required in ai mode"}
+                    "example": {"detail": [{"loc": ["body", "context"], "msg": "Field required", "type": "missing"}]}
                 }
             },
         },
@@ -213,16 +209,7 @@ async def get_user_story(session: Session, curr_creator: Annotated[Users, Depend
             "description": "Duplicate story detected",
             "content": {
                 "application/json": {
-                    "examples": {
-                        "duplicate_title": {
-                            "summary": "Duplicate manual article",
-                            "value": {"detail": "You have already created a story with the same title."}
-                        },
-                        "duplicate_context": {
-                            "summary": "Duplicate AI context",
-                            "value": {"detail": "A story with the same context already exists."}
-                        }
-                    }
+                    "example": {"detail": "A story with the same title, body, or context already exists."}
                 }
             },
         },
@@ -341,100 +328,176 @@ async def submit_answer(request: AnswerSchema, session: Session, user_story: Ann
 @router.get(
     "/user/{user_story_id}/generate",
     response_model=GeneratedStoryResponseSchema,
-    summary="Generate or retrieve the final article (AI-assisted or manual mode)",
+    summary="Generate or fetch generated story output",
     description="""
-        This endpoint finalizes the user story into a publish-ready article.
+        Generate and persist story output based on the story mode.
 
-        ### **How It Works**
+        AI mode (`mode="ai"`):
+        - Requires stored QnA for the story.
+        - Generates article content and metadata (title/snippet/full_text/tags/categories).
 
-        The behavior depends on the story's mode:
+        Manual mode (`mode="manual"`):
+        - Requires an existing manual draft with `title` and `full_text`.
+        - Generates metadata for that draft (title refinement/snippet/tags/categories).
+        - The draft body is not rewritten.
 
-        ---
-
-        #### 🔹 AI-Assisted Mode (`mode="ai"`)
-
-        The system will:
-        - Use the user's context, writing preferences (tone, style, language, length)
-        - Use previously collected Q&A responses
-        - Generate a full article including:  
-        - Title (AI-generated if missing or weak)
-        - Snippet (short HTML summary)
-        - Complete formatted article body
-        - Category
-        - Tags
-
-        ---
-
-        #### 🔹 Manual Mode (`mode="manual"`)
-
-        The user already provided the full written content.  
-        The system will generate only the following metadata:
-
-        - Improved title (only if missing or inaccurate)
-        - Snippet (≤400 characters)
-        - Category (1–3 best matches)
-        - Tags (5–10 relevant keywords)
-
-        **The full text is never rewritten in manual mode.**
-
-        ---
-
-        ### Retrieval and Regeneration Rules
-
-        - If an article has already been generated and `force_regenerate=false`, the stored version is returned.
-        - If `force_regenerate=true`, the article will be regenerated (content for AI mode or metadata for manual mode) and overwritten.
-
-        ---
-
-        ### Example Use Cases
-
-        - ✔️ Creators reviewing drafts
-        - ✔️ Editors regenerating metadata
-        - ✔️ Article preview before submission
-
+        Retrieval behavior:
+        - If a generated article already exists and story status is `generated`, it is returned when `force_regenerate=false`.
+        - Otherwise generation runs and stored data is updated.
         """,
     responses={
         200: {"description": "Successfully generated or retrieved article"},
-        400: {"description": "Invalid story mode"},
-        404: {
-            "description": "Required data missing (e.g., QnA missing for AI mode)"
+        400: {
+            "description": "Invalid mode data or missing prerequisites in manual mode",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "manual_missing_article": {
+                            "summary": "Manual article missing",
+                            "value": {"detail": "Manual mode requires an existing generated article"}
+                        },
+                        "manual_missing_required_fields": {
+                            "summary": "Title/full_text missing",
+                            "value": {"detail": "Title and full text must be present before generating metadata"}
+                        },
+                        "invalid_mode": {
+                            "summary": "Unsupported mode",
+                            "value": {"detail": "Invalid story mode"}
+                        }
+                    }
+                }
+            },
         },
-        409: {
-            "description": "Duplicate article detected (slug/title conflict)"
+        404: {
+            "description": "Story or required AI inputs not found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "story_not_found": {
+                            "summary": "Story not found",
+                            "value": {"detail": "User story not found"}
+                        },
+                        "missing_qna": {
+                            "summary": "No QnA found",
+                            "value": {"detail": "No QnA found for this story"}
+                        }
+                    }
+                }
+            },
         },
         502: {
-            "description": "AI service error or model response could not be parsed"
+            "description": "AI service error or generation parsing failure",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error while generating article or JSON parsing"}
+                }
+            },
         },
         500: {
-            "description": "Database failure or unexpected internal server error"
+            "description": "Database failure or unexpected internal server error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error while storing generated article in DB"}
+                }
+            },
         },
     },
 )
 async def generate_user_story(session: Session, user_story: UserStoryDep, force_regenerate: bool = False):
-    # if user_story.mode != 'ai':
-    #     raise HTTPException(status_code=400, detail="User story is not in AI mode")
     return await get_generated_user_story(session, user_story, force_regenerate)
 
 
-@router.put("/user/generate/{generated_article_id}", response_model=GeneratedStoryResponseSchema)
-async def edit_generated_article(session: Session, curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))], generated_article_id: str, payload: EditGeneratedArticleSchema):
-    return await edit_generated_article_db(session, curr_creator.id, generated_article_id, payload)
+@router.put(
+    "/user/generate/{generated_article_id}",
+    response_model=GeneratedStoryResponseSchema,
+    summary="Edit generated article content",
+    description="""Update the title, snippet, full text, images, and metadata of a generated article.
+    
+    Only articles in DRAFT or GENERATED status can be edited.
+    Submitted articles cannot be modified - they must be rejected first.
+    
+    Editable fields:
+    - title: Article headline
+    - snippet: Short summary
+    - full_text: Complete article body
+    - images_keys: S3 image keys for article media
+    - tags: Array of article tags
+    - categories: Array of category IDs
+    - city: City ID for article location
+    
+    Only the creator who owns the story can edit their articles.""",
+    responses={
+        200: {"description": "Article successfully updated"},
+        400: {"description": "Invalid request data or article in non-editable state"},
+        401: {"description": "Insufficient permissions - Creator role required"},
+        403: {"description": "Cannot edit another creator's articles"},
+        404: {"description": "Article not found"},
+        500: {"description": "Database error while updating article"}
+    }
+)
+async def edit_generated_article(
+    session: Session,
+    curr_creator: Annotated[Users, Depends(role_checker(UserRoles.CREATOR))], generated_article_id: str,
+    payload: EditGeneratedArticleSchema
+):
+    return await edit_generated_article_db(
+        session,
+        curr_creator.id,
+        generated_article_id,
+        payload
+    )
 
 
 @router.patch(
     "/user/{generated_article_id}",
-    summary="Change story status to submitted",
-    description="""
-    Update the status of a specific user story to **SUBMITTED**.  
-    This is typically called when the user has finished providing all answers 
-    and is ready for editorial review.
-    """,
+    summary="Submit story for editor review",
+    description="""Submit a generated article for editor review and publication consideration.
+    
+    Transitions the story status from GENERATED to SUBMITTED, marking it as ready for editorial review.
+    
+    Prerequisites before submission:
+    - Story must have status GENERATED (generated article must exist)
+    - Article must have a non-empty title
+    - Article must have complete full_text content
+    - Only article creator can submit their own stories
+    
+    Once submitted, the article cannot be edited directly - editors may request changes via rejection.""",
     responses={
-        404: {"description": "User story not found"},
-        500: {"description": "Database error while updating story status"},
-    },
+        200: {"description": "Story successfully submitted for review"},
+        400: {"description": "Title and article body must be present before submitting"},
+        401: {"description": "Insufficient permissions - Creator role required"},
+        403: {"description": "Cannot submit another creator's stories"},
+        404: {"description": "Generated article not found"},
+        409: {"description": "Can only submit articles with GENERATED status"},
+        500: {"description": "Database error while updating story status"}
+    }
 )
 async def change_story_status_to_submitted(
-    session: Session, generated_article: GeneratedArticleDep, request: UploadedImageKeys | None = Body(default=None)
+    session: Session,
+    generated_article: GeneratedArticleDep
 ):
-    return await update_user_story_status(session, generated_article, request)
+    user_story = generated_article.user_story
+    story_status = user_story.status
+    
+    if story_status != UserStoryStatus.GENERATED:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Can only submit generated articles"
+        )
+    
+    if not generated_article.title or not generated_article.full_text:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Title and article body must be present before submitting"
+        )
+    
+    await update_user_story_status(
+        session,
+        user_story_id=generated_article.user_story_id,
+        submitted_at=datetime.now()
+    )
+    
+    await session.commit()
+    
+    return {"status": "success"}
+    

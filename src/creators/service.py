@@ -1,13 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, DatabaseError
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from fastapi import HTTPException, status, UploadFile
 import secrets
 from typing import Any
+from uuid import UUID
 
-from src.creators.schemas import CreateAuthorSchema, AuthorResponseSchema, UpdateProfileSchema
-from src.models import Authors, Users, UserRoles
+from src.creators.schemas import CreateAuthorSchema, AuthorResponseSchema, UpdateProfileSchema, CreatorLink
+from src.models import Authors, Users, UserRoles, Cities
 from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
 from src.aws.service import upload_file
@@ -38,11 +39,21 @@ async def create_author_db(
     first_name: str,
     email: str,
     password: str,
+    city_id: UUID,
     phone: str | None = None,
     last_name: str | None = None,
     bio: str | None = None,
     profile_image: UploadFile | None = None
 ) -> AuthorResponseSchema:
+    
+    # Verify city id exists
+    city = await session.get(Cities, city_id)
+    if not city:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="city id does not exist"
+        )
+    
     hashed_password = hash_password(password)
     try:
         first_name = first_name.strip().capitalize()
@@ -82,9 +93,11 @@ async def create_author_db(
 
         authors_stmt = insert(Authors).values(
             id=user.id,
-            bio=bio
+            bio=bio,
+            city_id=city_id
         ).returning(
-            Authors.bio
+            Authors.bio,
+            Authors.city_id
         )
         res = await session.execute(authors_stmt)
         bio = res.scalar_one_or_none()
@@ -99,6 +112,9 @@ async def create_author_db(
             username=unique_username,
             email=user.email,
             bio=bio,
+            city={"id": user.city_id if city else None,
+                  "name": city.name if city else None
+                },
             profile_image=profile_img_url
         )
         
@@ -191,10 +207,10 @@ async def update_creator_profile_db(
             session.add(new_author)
         else:
             # Update existing author bio
-            await session.execute(
+            result = await session.execute(
                 update(Authors)
-                .where(Authors.id == curr_creator.id)
-                .values(bio=bio)
+                    .where(Authors.id == curr_creator.id)
+                    .values(bio=bio)
             )
 
     # ---------- Commit everything ----------
@@ -218,5 +234,88 @@ async def update_creator_profile_db(
     )
 
 
+from sqlalchemy import delete
+from datetime import date
+
+from src.models import EditorCities, UserLinks
+
+async def store_creator_onboarding(
+    session: AsyncSession,
+    creator_id: UUID,
+    date_of_birth: date,
+    city_id: UUID,
+    highest_education: str,
+    work_status: str,
+    highest_educatation_specify: str | None = None,
+    work_status_specify: str | None = None,
+):
+    existing_creator = await session.get(Authors, creator_id)
     
+    existing_creator.date_of_birth = date_of_birth
+    existing_creator.city_id = city_id
+    existing_creator.highest_education = highest_education
+    existing_creator.work_status = work_status
+    existing_creator.highest_education_other_specify = highest_educatation_specify
+    existing_creator.work_status_other_specify = work_status_specify
     
+        
+async def _delete_existing_links_or_cities(session: AsyncSession, table: EditorCities | UserLinks, creator_id: UUID):
+    await session.execute(
+        delete(table).where(table.editor_id == creator_id)
+    )
+
+async def store_creator_links(
+    session: AsyncSession,
+    creator_id: UUID,
+    links: list[CreatorLink]
+):
+    await _delete_existing_links_or_cities(session, UserLinks, creator_id)
+    
+    await session.execute(
+        insert(UserLinks)
+            .values([{"user_id": creator_id, "url": link.url, "link_type": link.link_type, "platform": link.platform, "description": link.description} for link in links])
+    )
+    
+
+async def update_onboarding_status(
+    session: AsyncSession,
+    creator_id: UUID,
+    completed: bool
+):
+    await session.execute(
+        update(Authors)
+            .where(Authors.id == creator_id)
+            .values(onboarding_completed=completed)
+    )
+
+async def complete_creator_onboarding(
+    session: AsyncSession,
+    creator_id: UUID,
+    date_of_birth: date | str,
+    city_id: UUID,
+    highest_education: str,
+    work_status: str,
+    city_ids: list[UUID],
+    education_other_specify: str | None = None,
+    work_status_other_specify: str | None = None,
+    links: list[CreatorLink] | None = None,
+):
+    onboarding_id = await store_creator_onboarding(
+            session=session,
+            creator_id=creator_id,
+            date_of_birth=date_of_birth,
+            city_id=city_id,
+            highest_education=highest_education,
+            highest_educatation_specify=education_other_specify,
+            work_status=work_status,
+            work_status_specify=work_status_other_specify,
+        )
+    
+    if links:
+        await store_creator_links(session, creator_id, links)
+        
+    
+    await update_onboarding_status(session, creator_id, True)
+        
+    return onboarding_id
+

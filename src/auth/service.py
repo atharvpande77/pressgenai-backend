@@ -8,7 +8,7 @@ from src.models import Authors, Users
 
 
 async def get_user_by_email(session: AsyncSession, email: str):
-    result = await session.execute(select(Users).filter(Users.email == email))
+    result = await session.execute(select(Users).where(Users.email == email))
     return result.scalars().first()
     
 

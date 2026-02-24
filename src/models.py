@@ -88,6 +88,7 @@ class UserStories(Base):
     word_length_range = Column(String(50))
     created_at = Column(TIMESTAMP, server_default=func.now() + time_diff_interval)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now() + time_diff_interval)
+    submitted_at = Column(TIMESTAMP)
     status = Column("status",user_stories_status_enum, default=UserStoryStatus.COLLECTING)
     # status = Column(String(20), default=UserStoryStatus.COLLECTING)
     publish_status = Column("publish_status", user_stories_publish_status_enum, default=UserStoryPublishStatus.PENDING)
@@ -146,11 +147,21 @@ class NewsCategory(str, Enum):
 
 news_category_enum = ENUM(*[category.value for category in NewsCategory], name="news_category")
 
+
+class LocationScope(str, Enum):
+    CITY = "city"
+    STATE = "state"
+    COUNTRY = "country"
+    INTERNATIONAL = "international"
+    UNREVIEWED = "unreviewed"
+    
+location_scope_enum = ENUM(*[scope.value for scope in LocationScope], name="location_scope_enum")
+
 class GeneratedUserStories(Base):
     __tablename__ = "generated_user_stories"
 
     id = Column(UUID, primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
-    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False)
+    user_story_id = Column(UUID(as_uuid=True), ForeignKey('user_stories.id'), nullable=False, unique=True)
     author_id = Column(UUID(as_uuid=True), ForeignKey('authors.id'), nullable=False)
     title = Column(TEXT)
     title_hash = Column(String(64), nullable=True, index=True, unique=True)
@@ -159,6 +170,8 @@ class GeneratedUserStories(Base):
     snippet = Column(TEXT)
     full_text = Column(TEXT)
     full_text_hash = Column(String(64), unique=True, index=True)
+    location_scope = Column("location_scope", location_scope_enum, default=LocationScope.UNREVIEWED)
+    city_id = Column(UUID(as_uuid=True), ForeignKey('cities.id'))
     category = Column("category", ARRAY(news_category_enum), default=[NewsCategory.GENERAL])
     tags = Column("tags", ARRAY(String), default=list)
     images_keys = Column("images_keys", ARRAY(String), default=list)
@@ -174,6 +187,15 @@ class GeneratedUserStories(Base):
     user_story = relationship("UserStories", back_populates="generated_stories", lazy='selectin')
     author = relationship("Authors", back_populates="generated_user_stories", lazy='selectin')
     editor = relationship("Users", foreign_keys=[editor_id], lazy='selectin')
+    city = relationship("Cities", lazy='selectin')
+    categories = relationship(
+        "Categories",
+        secondary="article_categories",
+        back_populates="articles",
+        lazy="selectin",
+    )
+    city = relationship("Cities", back_populates="generated_user_stories", lazy='selectin')
+
 
 class UserRoles(str, Enum):
     ADMIN = "admin"
@@ -231,6 +253,7 @@ class Authors(Base):
     generated_user_stories = relationship(
         "GeneratedUserStories", back_populates="author", lazy="selectin"
     )
+    city = relationship("Cities", back_populates="authors", lazy="selectin")
 
 class UserLinks(Base):
     __tablename__ = "user_links"
@@ -248,7 +271,9 @@ class Cities(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
     name = Column(String(100), nullable=False)
     active = Column(BOOLEAN, default=True)
-
+    
+    authors = relationship("Authors", back_populates="city", lazy="selectin")
+    generated_user_stories = relationship("GeneratedUserStories", back_populates="city", lazy="selectin")
 
 class EditorCities(Base):
     __tablename__ = "editor_cities"
@@ -270,6 +295,26 @@ class Categories(Base):
     value = Column(String(100), nullable=False)
     active = Column(BOOLEAN, default=True)
     
+    articles = relationship(
+        "GeneratedUserStories",
+        secondary="article_categories",
+        back_populates="categories",
+        lazy="selectin",
+    )
+
+    
+    
+class ArticleCategories(Base):
+    __tablename__ = "article_categories"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
+    article_id = Column(UUID(as_uuid=True), ForeignKey('generated_user_stories.id'), nullable=False)
+    category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('article_id', 'category_id', name='unique_article_category'),
+    )
+    
 class EditorCategories(Base):
     __tablename__ = "editor_categories"
     
@@ -277,7 +322,7 @@ class EditorCategories(Base):
     editor_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
     
-    __tableargs__ = (
+    __table_args__ = (
         UniqueConstraint('editor_id', 'category_id', name='unique_editor_category'),
     )
     

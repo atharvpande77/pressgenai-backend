@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict, field_serializer, computed_field
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict, Field, HttpUrl, ConfigDict, field_serializer, computed_field, AliasChoices
 from typing import Literal, Optional, Annotated
 from uuid import UUID
 from datetime import datetime
@@ -74,6 +74,69 @@ class ReqSchema(BaseModel):
     why: Optional[str] = None
     how: Optional[str] = None
 
+from src.aws.utils import get_full_s3_object_url
+
+
+def make_images_mixin(field_name: str = "images_keys"):
+    class ImagesMixin:
+        @field_validator(field_name, mode='before')
+        @classmethod
+        def normalize_images_keys(cls, v):
+            if not v:
+                return []
+            normalized: list[str] = []
+            for image in v:
+                if isinstance(image, str):
+                    normalized.append(image)
+                elif isinstance(image, dict):
+                    if image.get('key'):
+                        normalized.append(image['key'])
+                    elif image.get('url'):
+                        normalized.append(image['url'])
+            return normalized
+
+        @computed_field
+        @property
+        def images(self) -> list[dict[str, str]] | None:
+            keys = getattr(self, field_name, None)
+            if not keys:
+                return None
+            return [
+                {
+                    "key": image,
+                    "url": image if image.startswith(("http://", "https://")) else get_full_s3_object_url(image)
+                }
+                for image in keys
+                if image
+            ]
+
+    ImagesMixin.__annotations__[field_name] = list[str]
+    setattr(ImagesMixin, field_name, Field(default_factory=list, exclude=True, validation_alias=AliasChoices(field_name, 'images')))
+
+    return ImagesMixin
+
+ImagesMixIn = make_images_mixin('images_keys')
+
+def make_profile_image_mixin(field_name: str = "profile_image_key"):
+    class ProfileImageMixin:
+        @computed_field
+        @property
+        def profile_image(self) -> dict[str, str] | None:
+            key = getattr(self, field_name, None)
+            if not key:
+                return None
+            return {
+                "key": key,
+                "url": key if key.startswith(("http://", "https://")) else get_full_s3_object_url(key)
+            }
+
+    # Dynamically add the field to the mixin
+    ProfileImageMixin.__annotations__[field_name] = str | None
+    setattr(ProfileImageMixin, field_name, Field(default=None, exclude=True))
+
+    return ProfileImageMixin
+
+ProfileImageMixin = make_profile_image_mixin('profile_image_key')
 class CreationMode(str, Enum):
     MANUAL = "manual"
     AI = "ai"
@@ -109,7 +172,7 @@ class CreateManualStorySchema(BaseModel):
     # snippet: str = Field(..., min_length=50, max_length=400)
     # category: list[str] = Field(..., min_length=1, max_length=3)
     # tags: list[str] = Field(..., min_length=1, max_length=15)
-    images_keys: list[str] = Field(default_factory=list)
+    # images_keys: list[str] = Field(default_factory=list)
     language: str | None = Field(default="Marathi")
     
     # @field_validator('category')
@@ -180,66 +243,54 @@ class CategorySerializerMixin:
     def serialize_category(self, categories: list[str] | None) -> list[dict[str, str]]:
         return serialize_categories(categories)
 
-# class ImageSerializerMixin:
-#     """Mixin for image serialization"""
     
-#     @field_serializer('images_keys')
-#     def serialize_images_keys(self, images_keys: list[str] | None) -> list[dict[str, str]]:
-#         return [{"key": key, "url": get_full_s3_object_url(key)} for key in images_keys]
+class CategoriesDB(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     
-class GeneratedStoryResponseSchema(CategorySerializerMixin, BaseModel):
+    id: UUID
+    name: str
+    value: str    
+
+class GeneratedStoryResponseSchema(ImagesMixIn, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     title: str | None = None
     slug: str | None = None
     snippet: str | None = None
-    full_text: str | None = None
-    category: list[str] | None = []
+    full_text: str
     tags: list[str] | None = []
-    images: list | None = Field(default=[])
+    categories: list[CategoriesDB] | None = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    published_at: Optional[datetime] = None
     
-class CreateStoryResponseSchema(BaseModel):
+    
+class CreateStoryBaseResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
+    
     id: UUID
     status: str
     publish_status: str
     mode: str
+
+class CreateAIStoryResponse(CreateStoryBaseResponse):
     # AI mode fields
-    context: str | None = None
-    tone: str | None = None
-    style: str | None = None
+    context: str
+    tone: str
+    style: str
+    language: str
+    word_length: str
+    
+    
+class CreateManualStoryResponse(ImagesMixIn, CreateStoryBaseResponse):
+    title: str | None = None
+    snippet: str | None = None
+    full_text: str | None = None
     language: str | None = None
-    word_length: str | None = None
-
-    # Manual mode fields
-    manual_story: GeneratedStoryResponseSchema | None = None
-
-
-# class UserStoryResponseSchema(CreateStorySchema):
-#     model_config = ConfigDict(from_attributes=True)
-
-#     id: UUID
-#     context: str
-#     title: str | None = None
-#     tone: str
-#     style: str
-#     language: str
-#     word_length: str
-#     created_at: datetime
-#     updated_at: datetime
-#     status: str
-#     publish_status: str
 
 class QNAItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    question_id: UUID | None = None
-    answer_id: UUID | None = None
     question_text: str | None = Field(default=None, alias='question')
     answer_text: str | None = Field(default=None, alias='answer')
 
@@ -270,26 +321,24 @@ class UserStoryItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: UUID
-    title: Optional[str] = None
     context: Optional[str] = None
     mode: str | None = None
     status: str = None
     publish_status: str = None
     initiated_at: Optional[datetime] = None
-    slug: str | None = None
     generated_title: Optional[str] = None
     generated_snippet: Optional[str] = None
-    images: Optional[list[dict] | None] = []
     generated_story_full_text: Optional[str] = None
     generated_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
 
 class EditGeneratedArticleSchema(BaseModel):
-    title: str | None = Field(default=None, max_length=75)
-    snippet: str | None = Field(default=None, min_length=30, max_length=2000)
-    full_text: str | None = Field(default=None, min_length=500, max_length=100000)
-    # images_keys: list[str] | None = Field(default=None, max_length=3, min_length=1)
+    title: str | None = Field(default=None, max_length=ContentSizeLimits.TITLE_MAX)
+    snippet: str | None = Field(default=None, min_length=ContentSizeLimits.SNIPPET_MIN, max_length=ContentSizeLimits.SNIPPET_MAX)
+    full_text: str | None = Field(default=None, min_length=ContentSizeLimits.FULL_TEXT_MIN, max_length=ContentSizeLimits.FULL_TEXT_MAX)
+    images_keys: list[str] | None = Field(default=[], max_length=3)
 
 class UploadedImageKeys(BaseModel):
     images_keys: list[str] | None = Field(None, max_length=3)

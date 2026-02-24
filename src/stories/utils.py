@@ -500,7 +500,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
 
         Options:
         - Tone: {user_story.tone or "casual"}  (e.g., formal, casual, neutral)
-        - Style: {user_story.style or "informative"}  (e.g., informative, narrative, breaking news)
+        - Style: {user_story.style or "informative"}  (e.g., informative, narraxtive, breaking news)
         - Language: {user_story.language or "English"}
         - Word Count Target: {f"{user_story.word_length} {str(user_story.word_length_range)}" if user_story.word_length else "short (300-500)"}  
 
@@ -525,7 +525,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         "english_title": "If the article is not in English, provide an exact translation (not summarization) of the original title into English, keeping it under 12 words. If the article is in English, leave this empty.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
         "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
-            "category": ["A list of 1–3 categories from this fixed list: [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]. Should always be a list even i f there is only one category. Only include multiple categories if they truly fit the article. If none apply, use 'general'."],
+        "category": ["A list of 1–3 categories from this fixed list: [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]. Should always be a list even if there is only one category. Only include multiple categories if they truly fit the article. If none apply, use 'general'."],
         "tags": ["A list of 5–10 relevant keywords or short phrases based on the article (no hashtags, plain text)"]
         }}
 
@@ -579,7 +579,15 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
         # }
         return None
     
-async def generate_manual_story_metadata(full_text: str, title: str | None = None) -> dict:
+async def generate_manual_story_metadata(full_text: str, title: str | None = None, snippet: str | None = None) -> dict:
+    """
+    :param full_text: Description
+    :type full_text: str
+    :param title: Description
+    :type title: str | None
+    :return: Description
+    :rtype: dict
+    """
     try:
         PROMPT = f"""
             You are an AI news metadata generator. Your job is to analyze the article body provided below
@@ -597,14 +605,24 @@ async def generate_manual_story_metadata(full_text: str, title: str | None = Non
 
             3. Generate a refined or alternative title ONLY IF:
             - The user provided no title, OR
+            - If title length < 10 characters
+            - Provided title is identical to body text fragment
+            - Title language ≠ body language (in that case, detect the primary language of the body and generate the title in the same language as the body)
+            - Title does not mention the main entity/topic present in the article body
             - The provided title is irrelevant, inaccurate, or does not reflect the article content.
-            If the user’s title is relevant, return it as is.
             - Must be in the SAME LANGUAGE as the article body.
             
+            OTHERWISE return the user’s title EXACTLY UNCHANGED.
+            
             4. Generate an english title
-            - If the article is not in English, provide an exact translation (not summarization) of the original title into English, keeping it under 12 words. If the article is in English, leave this empty.
+            - If the article is not in English, provide an exact translation (not summarization) of the original title/ generated title (if) into English, keeping it under 12 words. If the article is in English, leave this empty.
 
-            5. Generate a short snippet (summary) not exceeding 400 characters.
+            5. Generate a short snippet (summary) not exceeding 400 characters, ONLY IF: Either the user provided no snippet, OR
+            If snippet length < 30 characters OR snippet is copied verbatim from title OR snippet language ≠ body language (in that case, detect the primary language of the body and generate the title in the same language as the body) OR the snippet is irrelevant, inaccurate, or does not reflect the article content.
+            
+            OTHERWISE, return the user’s snippet EXACTLY UNCHANGED.
+            
+            Rules for generating snippet (if needed):
             - This should be a tight, factual summary of the article.
             - Must NOT contain HTML. Plain text only.
             - Must be in the SAME LANGUAGE as the article body.
@@ -624,17 +642,20 @@ async def generate_manual_story_metadata(full_text: str, title: str | None = Non
 
             ---
 
-            User Provided Title:
+            User Provided Title (May be empty):
             "{title or ""}"
 
             Article Body:
             \"\"\"{full_text}\"\"\"
+            
+            Article Snippet (May be empty):
+            "{snippet or ""}"
         """
 
         response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",  # or your preferred model
             messages=[
-                {"role": "system", "content": "You are a professional news article writer."},
+                {"role": "system", "content": "You are an expert at reviewing, summarizing and categorizing news articles."},
                 {"role": "user", "content": PROMPT}
             ],
             temperature=0.5

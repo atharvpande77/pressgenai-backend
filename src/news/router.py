@@ -5,7 +5,7 @@ from sqlalchemy.orm import aliased, joinedload, selectinload
 from sqlalchemy import select, func, case, literal
 from sqlalchemy.dialects.postgresql import JSONB
 
-from src.config.database import get_session
+from src.config.database import get_session, Session
 from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStoryPublishStatus, Users, Authors
 from src.news.dependencies import get_category_dep
 from src.news.schemas import CreatorProfileResponse, ArticleResponse

@@ -1,5 +1,5 @@
-from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserStoryPublishStatus, Users, UserRoles, Authors
-from src.editor.schemas import EditArticleSchema
+from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserStoryPublishStatus, Users, UserRoles, Authors, EditorCategories, EditorCities, ArticleCategories, Categories, Cities
+from src.editor.schemas import EditArticleSchema, ArticleItem
 from src.utils.query import get_article_images_json_query, get_profile_image_expression, get_creator_profile_image
 from src.creators.utils import hash_password
 from src.editor.schemas import CreatorItem, CreateCreatorSchema
@@ -7,9 +7,9 @@ from src.aws.utils import get_images_with_urls
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy import select, update, or_, func, literal, case
+from sqlalchemy import select, update, or_, and_, func, literal, case, text
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload, contains_eager
 from fastapi import HTTPException, status
 import traceback
 from uuid import UUID
@@ -21,56 +21,114 @@ Editors = aliased(Users)
 
 async def get_articles_by_publish_status(session: AsyncSession, editor_status: str, curr_editor_id: UUID, limit: int = 10, offset: int = 0):
     try:
-        # creator_profile_image = case(
-        #     (Users.profile_image_key != None,
-        #     func.concat(
-        #         literal(get_bucket_base_url()),
-        #         Users.profile_image_key
-        #     )),
-        #     else_=None
-        # ).label("creator_profile_image")
-        res = await session.execute(
-                select(
-                    GeneratedUserStories.id,
-                    GeneratedUserStories.title,
-                    # GeneratedUserStories.snippet,
-                    # GeneratedUserStories.full_text,
-                    GeneratedUserStories.category,
-                    # GeneratedUserStories.tags,
-                    # GeneratedUserStories.images_keys,
-                    GeneratedUserStories.created_at,
-                    UserStories.publish_status,
-                    GeneratedUserStories.updated_at,
-                    GeneratedUserStories.published_at,
-                    # get_article_images_json_query(),
-                    Creators.username.label('creator_username'),
-                    Creators.first_name.label('creator_first_name'),
-                    Creators.last_name.label('creator_last_name'),
-                    Editors.first_name.label('editor_first_name'),
-                    Editors.last_name.label('editor_last_name'),
-                    Editors.username.label('editor_username'),
-                    (Editors.id == curr_editor_id).label('can_edit')
-                    # get_profile_image_expression(label_name="creator_profile_image")
-                )
-                    .join(UserStories, UserStories.id == GeneratedUserStories.user_story_id)
-                    .join(Creators, Creators.id == GeneratedUserStories.author_id)
-                    .join(Editors, Editors.id == GeneratedUserStories.editor_id, isouter=True)
-                    .filter(
-                        UserStories.publish_status == editor_status,
-                        UserStories.status == UserStoryStatus.SUBMITTED,
-                        # or_(
-                        #     GeneratedUserStories.editor_id == None,
-                        #     GeneratedUserStories.editor_id == curr_editor_id
-                        # )
+        query = text("""
+            SELECT
+                gus.id,
+                gus.title,
+                us.publish_status,
+                -- Aggregate all matching categories into a JSON array
+                json_agg(
+                    json_build_object(
+                        'id',  c.id,
+                        'name',  c.name,
+                        'value', c.value
                     )
-                    .order_by(UserStories.created_at.desc())
-                    .limit(limit)
-                    .offset(offset)
-            )
-        articles = res.all()
-        # print([article._asdict() for article in articles])
-        # if not articles:
-        #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no {editor_status} articles found')
+                ) AS categories,
+                gus.city_id,
+                ct.name AS city,
+                -- Creator as JSON
+                json_build_object(
+                    'id', cu.id,
+                    'first_name', cu.first_name,
+                    'last_name', cu.last_name,
+                    'username', cu.username,
+                    'profile_image_key', cu.profile_image_key
+                ) AS creator,
+                -- Editor as JSON (empty object if null)
+                COALESCE(
+                    json_build_object(
+                        'id', eu.id,
+                        'first_name', eu.first_name,
+                        'last_name', eu.last_name,
+                        'username', eu.username,
+                        'profile_image_key', eu.profile_image_key
+                    ),
+                    '{}'::json
+                ) AS editor,
+                
+                -- Can edit flag
+                CASE 
+                    WHEN gus.editor_id IS NULL OR gus.editor_id = :curr_editor_id
+                    THEN true
+                    ELSE false
+                END AS can_edit,
+                
+                us.submitted_at,
+                gus.published_at
+                
+            FROM generated_user_stories gus
+            JOIN user_stories us
+                ON gus.user_story_id = us.id
+            JOIN article_categories ac
+                ON ac.article_id = gus.id
+            JOIN categories c
+                ON c.id = ac.category_id
+            JOIN cities ct
+                ON ct.id = gus.city_id
+            JOIN users cu
+                ON cu.id = gus.author_id
+                
+            LEFT JOIN users eu
+                ON eu.id = gus.editor_id
+            LEFT JOIN editor_categories ec
+                ON ec.editor_id = :curr_editor_id
+                AND ec.category_id = ac.category_id
+            JOIN editor_cities ecc
+                ON ecc.editor_id = :curr_editor_id
+                AND ecc.city_id = gus.city_id
+            WHERE
+                us.publish_status = :editor_status
+                AND us.status = :submitted_status
+                AND (
+                    gus.editor_id IS NULL
+                    OR gus.editor_id = :curr_editor_id
+                )
+                AND cu.active = true
+            GROUP BY
+                gus.id,
+                gus.title,
+                us.publish_status,
+                gus.city_id,
+                ct.name,
+                gus.author_id,
+                cu.id,
+                cu.first_name,
+                cu.last_name,
+                cu.username,
+                cu.profile_image_key,
+                gus.editor_id,
+                eu.id,
+                eu.first_name,
+                eu.last_name,
+                eu.username,
+                eu.profile_image_key,
+                us.submitted_at,      
+                gus.published_at
+            ORDER BY MAX(us.created_at) DESC
+            LIMIT :limit
+            OFFSET :offset;
+        """)
+
+        result = await session.execute(query, {
+            "curr_editor_id": str(curr_editor_id),
+            "editor_status": editor_status,
+            "submitted_status": UserStoryStatus.SUBMITTED,
+            "limit": limit,
+            "offset": offset
+        })
+        articles = result.mappings().all()
+        
+        # print(articles)
         return articles
     except DatabaseError as e:
         msg = f'Error while {editor_status} fetching articles'
@@ -81,42 +139,57 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
             "error": str(e)
         })
     
-async def get_article_by_id_db(session: AsyncSession, article_id: str):
-    result = await session.execute(select(GeneratedUserStories).filter(GeneratedUserStories.id == article_id).limit(1))
-    article = result.scalars().first()
+async def get_article_by_id_db(
+    session: AsyncSession,
+    article_id: UUID
+):
+    article = await session.get(GeneratedUserStories, article_id)
     if not article:
-        return None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no article found for id {article_id}')
     return article
 
-async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, payload: EditArticleSchema, curr_editor_id: UUID):
-    article_id = article.id
-    values = payload.model_dump(exclude_none=True)
-    if not values:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="all fields cannot be empty"
-        )
-        
-    print(f"Editing article: {values}")
-        
+async def edit_article_db(
+    session: AsyncSession,
+    article_id: UUID,
+    values: dict
+):
     result = await session.execute(
         update(GeneratedUserStories)
             .where(GeneratedUserStories.id == article_id)
-            .values(editor_id=curr_editor_id, **values)
+            .values(**values)
             .returning(GeneratedUserStories)
     )
-    article_updated = result.scalars().first()
-    
-    if article.user_story.publish_status == UserStoryPublishStatus.PENDING:
-        await set_publish_status(
-            session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
-        )
+    updated_story = result.scalars().first()
+    return updated_story
+
+    # article_id = article.id
+    # values = payload.model_dump(exclude_none=True)
+    # if not values:
+    #     raise HTTPException(
+    #         status.HTTP_400_BAD_REQUEST,
+    #         detail="all fields cannot be empty"
+    #     )
         
-    await session.commit()
+    # # print(f"Editing article: {values}")
+        
+    # result = await session.execute(
+    #     update(GeneratedUserStories)
+    #         .where(GeneratedUserStories.id == article_id)
+    #         .values(editor_id=curr_editor_id, **values)
+    #         .returning(GeneratedUserStories)
+    # )
+    # article_updated = result.scalars().first()
     
-    article_updated.images = get_images_with_urls(article_updated.images_keys)
+    # if article.user_story.publish_status == UserStoryPublishStatus.PENDING:
+    #     await set_publish_status(
+    #         session, article.user_story_id, UserStoryPublishStatus.WORK_IN_PROGRESS
+    #     )
+        
+    # await session.commit()
     
-    return article_updated
+    # article_updated.images = get_images_with_urls(article_updated.images_keys)
+    
+    # return article_updated
     
     # stmt = update(GeneratedUserStories).where(GeneratedUserStories.id == article_id).values(values).returning(GeneratedUserStories)
     # result = await session.execute(stmt)
@@ -128,27 +201,46 @@ async def edit_article_db(session: AsyncSession, article: GeneratedUserStories, 
     # return {'msg': "success", 'article_id': article_id, 'publish_status': publish_status}
 
 
-async def set_publish_status(session: AsyncSession, user_story_id: UUID, new_publish_status: str):
-    published_at = datetime.now()+timedelta(hours=5, minutes=30) if new_publish_status == UserStoryPublishStatus.PUBLISHED else None
-
-    result = await session.execute(
+async def set_publish_status(
+    session: AsyncSession,
+    user_story_id: UUID,
+    article_id: UUID,
+    new_publish_status: str,
+    curr_editor_id: UUID,
+    params: dict | None = None
+):
+    await session.execute(
         update(UserStories)
             .where(UserStories.id == user_story_id)
             .values(publish_status=new_publish_status)
-            .returning(UserStories.publish_status)
     )
-    publish_status = result.scalar_one_or_none()
-    if not publish_status:
-        return None
     
+    published_at = datetime.now()+timedelta(hours=5, minutes=30) if new_publish_status == UserStoryPublishStatus.PUBLISHED else None
+    
+    update_fields = {"editor_id": curr_editor_id}
     if published_at:
-        await session.execute(
-            update(GeneratedUserStories)
-                .where(GeneratedUserStories.user_story_id == user_story_id)
-                .values(published_at=published_at)
-        )
-    await session.commit()
-    return publish_status
+        update_fields["published_at"] = published_at
+        
+    if params:
+        update_fields = {**update_fields, **params}
+    
+    await session.execute(
+        update(GeneratedUserStories)
+            .where(
+                GeneratedUserStories.user_story_id == user_story_id,
+                GeneratedUserStories.id == article_id
+            )
+            .values(update_fields)
+    )
+    
+    # if published_at:
+    #     await session.execute(
+    #         update(GeneratedUserStories)
+    #             .where(GeneratedUserStories.user_story_id == user_story_id)
+    #             .values(published_at=published_at)
+    #     )
+    # await session.commit()
+    # return publish_status
 
 async def _set_editor_id(session: AsyncSession, article: GeneratedUserStories, editor_id: str):
     if not article.editor_id:
@@ -355,3 +447,30 @@ async def add_creator_db(session: AsyncSession, curr_editor_id: UUID, payload: C
             status.HTTP_409_CONFLICT,
             detail="A creator with this email already exists"
         )
+        
+from src.models import Categories
+
+async def validate_categories(
+    session: AsyncSession,
+    category_ids: list[UUID]
+):
+    category_ids = set(category_ids)
+    result = await session.execute(
+        select(Categories.id)
+            .where(Categories.id.in_(category_ids))
+    )
+    validated_category_ids = result.scalars().all()
+    
+    validated_category_ids_set = set(c_id for c_id in validated_category_ids)
+    invalid = category_ids - validated_category_ids_set
+    
+    if invalid:
+        print(f"Found invalid categories: {', '.join(invalid)}")
+    return validated_category_ids 
+    
+    
+async def get_city_by_id(session: AsyncSession, city_id: UUID):
+    city_db = await session.get(Cities, city_id)
+    if not city_db:
+        return None
+    return city_db.name

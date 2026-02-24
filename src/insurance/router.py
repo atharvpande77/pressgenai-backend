@@ -106,8 +106,6 @@ async def stream_insurance_chat(
     message: str,
     goal: str | None = None
 ):
-    # if not ASSISTANT_ID:
-    #     raise HTTPException(status_code=500, detail="Assistant not configured")
 
     chat_session = await get_or_create_thread(db, session_id, goal, openai_async_client)
     
@@ -115,15 +113,6 @@ async def stream_insurance_chat(
 
     # Cancel any active runs before adding new messages
     await cancel_active_runs(thread_id)
-
-    # Inject icebreaker message only once
-    # if session["goal"] and not session.get("first_message_injected"):
-    #     client.beta.threads.messages.create(
-    #         thread_id=thread_id,
-    #         role="assistant",
-    #         content=session.get("first_session_message", "")
-    #     )
-    #     session["first_message_injected"] = True
     
     await openai_async_client.beta.threads.messages.create(
         thread_id=thread_id,
@@ -168,7 +157,6 @@ async def stream_insurance_chat(
                             if tool_call.function.name == "extract_user_data":
                                 # Parse the function arguments
                                 import json
-                                import re
                                 function_args = json.loads(tool_call.function.arguments)
                                 
                                 print(f"[extract_user_data] User message: '{message}'")

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, update, select, func
+from sqlalchemy import and_, or_, update, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import selectinload
@@ -12,9 +12,9 @@ from fastapi import Path, HTTPException, Depends, status
 from typing import Annotated
 from uuid import UUID
 
-from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users
+from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users, Categories
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema, CreateStoryResponseSchema, GeneratedStoryResponseSchema
+from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema, CreateAIStoryResponse, CreateManualStoryResponse, GeneratedStoryResponseSchema
 from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify, generate_manual_story_metadata
 from src.auth.dependencies import role_checker
 from src.aws.utils import get_full_s3_object_url, get_images_with_urls
@@ -387,12 +387,6 @@ async def add_stories_to_db(session: AsyncSession, news_records: list[dict], loc
         return None
 
 
-
-    
-# from sqlalchemy import select
-# from sqlalchemy.ext.asyncio import AsyncSession
-# from datetime import datetime, timedelta
-
 async def fetch_stories_from_db(session: AsyncSession, location_id: str):
     try:
         result = await session.execute(select(Locations.max_days_back).filter(Locations.id == location_id))
@@ -479,30 +473,24 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
                         full_text_hash=full_text_hash,
                         # category=manual_story.category,
                         # tags=manual_story.tags,
-                        images_keys=manual_story.images_keys,
+                        # images_keys=manual_story.images_keys,
                     )
                     .returning(GeneratedUserStories)
             )
             generated_user_story = result.scalars().first()
 
             await session.commit()
-
-            return CreateStoryResponseSchema(
+            
+            return CreateManualStoryResponse(
                 id=user_story.id,
                 status=user_story.status,
                 publish_status=user_story.publish_status,
                 mode=user_story.mode,
                 language=user_story.language,
-                manual_story={
-                    "id": generated_user_story.id,
-                    "title": generated_user_story.title,
-                    "slug": generated_user_story.slug,
-                    "snippet": generated_user_story.snippet,
-                    "full_text": generated_user_story.full_text,
-                    "category": generated_user_story.category,
-                    "tags": generated_user_story.tags,
-                    "images_keys": get_images_with_urls(generated_user_story.images_keys)
-                }
+                title=generated_user_story.title,
+                snippet=generated_user_story.snippet,
+                full_text=generated_user_story.full_text,
+                images_keys=generated_user_story.images_keys,
             )
         
         context = request.context.strip()
@@ -532,17 +520,17 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
             raise HTTPException(status_code=500, detail="Error while creating new story")
         
         await session.commit()
-        # print(user_story.__dict__)
-        return CreateStoryResponseSchema(
+
+        return CreateAIStoryResponse(
             id=user_story.id,
             status=user_story.status,
             publish_status=user_story.publish_status,
             mode=user_story.mode,
+            language=user_story.language,
             context=user_story.context,
             tone=user_story.tone,
             style=user_story.style,
-            language=user_story.language,
-            word_length=user_story.word_length,
+            word_length=user_story.word_length
         )
     except IntegrityError as e:
         await session.rollback()
@@ -554,82 +542,6 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
             status.HTTP_409_CONFLICT,
             detail="A story with the same title, body, or context already exists."
         )
-
-        # Differentiate based on constraint names or known patterns
-        # if 'uq_author_titlehash' in err_msg or 'title_hash' in err_msg:
-        #     raise HTTPException(
-        #         status_code=409,
-        #         detail="You have already created a story with the same title."
-        #     )
-        # elif 'user_story_id' in err_msg or 'context' in err_msg:
-        #     raise HTTPException(
-        #         status_code=409,
-        #         detail="A story with the same context already exists."
-        #     )
-        # else:
-        #     # Generic fallback
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail="An unexpected database constraint was violated."
-        #     )
-    
-
-    # try:
-    #     # Normalize and hash inputs
-    #     context = request.context.strip()
-    #     title = request.title.strip() if request.title else None
-    #     hashed_context = generate_hash(context)
-    #     hashed_title = generate_hash(title) if title else None
-
-    #     # Extract writing options
-    #     options = request.options
-    #     word_length_range = get_word_length_range(options.word_length)
-
-    #     # Create story ORM object
-    #     new_story = UserStories(
-    #         title=title,
-    #         title_hash=hashed_title,
-    #         context=context,
-    #         context_hash=hashed_context,
-    #         tone=options.tone,
-    #         style=options.style,
-    #         language=options.language,
-    #         word_length=options.word_length,
-    #         word_length_range=str(word_length_range),
-    #         author_id=curr_creator_id
-    #     )
-
-    #     session.add(new_story)
-    #     await session.commit()
-    #     await session.refresh(new_story)
-
-    #     return {
-    #         "id": new_story.id,
-    #         "status": new_story.status,
-    #         "title": new_story.title,
-    #         "context": new_story.context,
-    #         "tone": new_story.tone,
-    #         "style": new_story.style,
-    #         "language": new_story.language,
-    #         "word_length": new_story.word_length,
-    #         "word_length_range": new_story.word_length_range,
-    #     }
-
-    # except IntegrityError:
-    #     await session.rollback()
-    #     traceback.print_exc()
-    #     raise HTTPException(
-    #         status_code=409,
-    #         detail="A story with the same context or title already exists.",
-    #     )
-    # except Exception as e:
-    #     await session.rollback()
-    #     print("Error while creating new story")
-    #     traceback.print_exc()
-    #     raise HTTPException(
-    #         status_code=500,
-    #         detail="An unexpected error occurred while creating the story.",
-    #     )
     
 async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
     try:
@@ -704,6 +616,8 @@ async def store_questions(session: AsyncSession, user_story_id: str, questions: 
         traceback.print_exc()
         return None
     
+from sqlalchemy import func
+    
 async def upsert_answer(session: AsyncSession, user_story_id: str, answer: AnswerSchema):
     try:
         # Ensure the question belongs to this user story
@@ -751,28 +665,50 @@ async def get_qna_by_user_story_id(session: AsyncSession, user_story_id: str, is
         isouter=isouter
     ).filter(
         UserStoriesQuestions.user_story_id == user_story_id,
-        UserStoriesQuestions.is_active == True
+        UserStoriesQuestions.is_active.is_(True)
     ))
     qna = result.all()
     
-    print(f"QnA: {qna}")
+    # print(f"QnA: {qna}")
     if qna:
         return [{"question": row.question, "answer": row.answer} for row in qna]
     return []
 
-async def get_generated_story_db(session: AsyncSession, user_story_id: str):
-    query = select(GeneratedUserStories.id,
-                    GeneratedUserStories.title,
-                    GeneratedUserStories.snippet,
-                    GeneratedUserStories.full_text,
-                    GeneratedUserStories.created_at,
-                    GeneratedUserStories.updated_at,
-                    GeneratedUserStories.category,
-                    GeneratedUserStories.tags,
-                    GeneratedUserStories.slug,
-                    get_article_images_json_query()).filter(GeneratedUserStories.user_story_id == user_story_id)
-    result = await session.execute(query)
-    return result.first() or None
+# async def get_generated_story_db(session: AsyncSession, user_story_id: str):
+#     query = select(GeneratedUserStories.id,
+#                     GeneratedUserStories.title,
+#                     GeneratedUserStories.snippet,
+#                     GeneratedUserStories.full_text,
+#                     GeneratedUserStories.created_at,
+#                     GeneratedUserStories.updated_at,
+#                     GeneratedUserStories.category,
+#                     GeneratedUserStories.tags,
+#                     GeneratedUserStories.slug,
+#                     get_article_images_json_query()).filter(GeneratedUserStories.user_story_id == user_story_id)
+#     result = await session.execute(query)
+#     return result.first() or None
+
+async def get_article_by_id_or_user_story_id(session: AsyncSession, article_id: UUID | None = None, user_story_id: UUID | None = None):
+    if article_id and user_story_id:
+        where_clause = or_(GeneratedUserStories.id == article_id, GeneratedUserStories.user_story_id == user_story_id)
+    elif article_id:
+        where_clause = GeneratedUserStories.id == article_id
+    elif user_story_id:
+        where_clause = GeneratedUserStories.user_story_id == user_story_id
+    else:
+        return None
+    
+    result = await session.execute(
+        select(GeneratedUserStories)
+            .options(selectinload(GeneratedUserStories.categories))
+            .where(where_clause)
+    )
+    
+    article = result.scalars().first()
+    
+    # print(f"Printing manual article slug: \n{getattr(article, 'slug')})")
+    
+    return article
 
 async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, curr_creator_id: str):
     try:
@@ -792,12 +728,12 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         if user_story_db.status == UserStoryStatus.COLLECTING:
             return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna)
         
-        generated_article_db = await get_generated_story_db(session, user_story_id)
+        generated_article_db = await get_article_by_id_or_user_story_id(session, user_story_id=user_story_id)
 
         return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna, generated=generated_article_db)
     except DatabaseError as dbe:
         traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(dbe))
+        raise
     except HTTPException:
         raise
     except Exception as e:
@@ -819,12 +755,107 @@ async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: 
         if not existing.scalar_one_or_none():
             return slug
 
+
+
+async def _get_general_category_id(session: AsyncSession, general_category_value: str = 'general'):
+    """
+    Gets the general category id from the database, in case the LLM generates no categories.
+    
+    :param session: Description
+    :type session: AsyncSession
+    :param general_category_value: Description
+    :type general_category_value: str
+    """
+    
+    result = await session.execute(
+        select(Categories)
+            .where(Categories.value == general_category_value)
+    )
+    general = result.scalars().first()
+    return {"id": general.id, "name": general.name, "value": general.value}
+
+
+async def get_category_ids(session: AsyncSession, categories: list[str]) -> list[dict]:
+    """
+    Resolves category names to category ids from the database.
+    
+    :param session: Description
+    :type session: AsyncSession
+    :param categories: Description
+    :type categories: list[str]
+    """
+    
+    if not categories:
+        return [await _get_general_category_id(session)]
+
+    normalized_categories = {c.lower().strip() for c in categories if c and c.strip()}
+
+    result = await session.execute(
+        select(Categories)
+            .where(Categories.value.in_(normalized_categories))
+            .limit(3)
+    )
+            
+    category_ids = result.scalars().all()
+    
+    # print(category_ids)
+    
+    if category_ids:
+        # name_to_ids = {category.value: category.id for category in category_ids}
+        name_to_ids = [{"id": category.id, "name": category.name, "value": category.value} for category in category_ids]
+        # missing = normalized_categories - name_to_ids.keys()
+        
+        # if missing:
+        #     print(f"Missing categories while generating article metadata: {missing}")        
+        
+        return name_to_ids
+    return [await _get_general_category_id(session)]
+
+
+async def get_creator_city(session: AsyncSession, creator_id: str) -> UUID:
+    """
+    Docstring for get_creator_city
+    
+    :param session: Description
+    :type session: AsyncSession
+    :param creator_id: Description
+    :type creator_id: str
+    :return: Description
+    :rtype: UUID
+    """
+    
+    result = await session.get(Authors, creator_id)
+    return result.city_id
+    
+from src.models import ArticleCategories, Authors 
+
+from sqlalchemy import delete
+
+async def upsert_categories(
+    session: AsyncSession,
+    article_id: UUID,
+    
+):
+    ...
+
 async def store_generated_article(session: AsyncSession, generated: dict, user_story_id: str, creator_id: str):
     """
-        Behavior:
+    Behavior:
         If mode=AI_ASSISTED, stores the generated article in the DB.
         IF mode=MANUAL, updates the article in GeneratedUserStories table with metadata (title, categories, tags, etc.).
+    
+    :param session: Description
+    :type session: AsyncSession
+    :param generated: Description
+    :type generated: dict
+    :param user_story_id: Description
+    :type user_story_id: str
+    :param creator_id: Description
+    :type creator_id: str
     """
+    
+    # print(f"Regenerated article for user story {user_story_id}: \n{generated}")
+    
     title = generated.get('title')
     english_slug_title = generated.get('english_title') 
     # print(generated)
@@ -832,46 +863,116 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
     title_for_slug = english_slug_title if english_slug_title else title
     title_hash = generate_hash(title)
     slug = await generate_unique_slug(session, title_for_slug)
-
-    result = await session.execute(
-        select(GeneratedUserStories)
-            .where(GeneratedUserStories.user_story_id == user_story_id)
-    )
-    existing = result.scalars().first()
-
-    if existing:
-        print(f"Existing generated story full text: {existing.full_text}")
-        result = await session.execute(
-            update(GeneratedUserStories)
-                .where(GeneratedUserStories.user_story_id == user_story_id)
-                .values(
-                    slug=slug,
-                    title_hash=title_hash,
-                    **generated
-                )
-                .returning(GeneratedUserStories)
-        )
-    else:
-        result = await session.execute(
-            insert(GeneratedUserStories)
-                .values(
-                    user_story_id=user_story_id,
-                    author_id=creator_id,
-                    slug=slug,
-                    title_hash=title_hash,
-                    **generated
-                )
-                .returning(GeneratedUserStories)
-        )
     
+    full_text = generated.get('full_text')
+    
+    categories = generated.get('category')
+    
+    validated_categories = await get_category_ids(session, categories)
+    
+    creator_city_id = await get_creator_city(session, creator_id)
+    
+    common_fields = {
+        "title": title,
+        "english_title": english_slug_title,
+        "title_hash": title_hash,
+        "slug": slug,
+        "snippet": generated.get('snippet'),
+        "tags": generated.get('tags'),
+        "location_scope": "unreviewed", # mark as unreviewed until editor reviews
+        "city_id": creator_city_id
+    }
+    
+    insert_fields = {
+        "user_story_id": user_story_id,
+        "author_id": creator_id,
+        "full_text": full_text,
+        **common_fields
+    }
+    
+    update_fields = dict(common_fields)
+    if full_text:
+        update_fields['full_text'] = full_text
+        
+    stmt = (
+        insert(GeneratedUserStories)
+            .values(**insert_fields)
+            .on_conflict_do_update(
+                index_elements=[GeneratedUserStories.user_story_id],
+                set_=update_fields,
+            )
+            .returning(GeneratedUserStories.id)
+    )
+    result = await session.execute(stmt)
+    article_id = result.scalar_one_or_none()
+    
+    # if article_id and validated_categories:
+    
+    # Add categories
+    
+    await session.execute(
+        delete(ArticleCategories)
+            .where(ArticleCategories.article_id == article_id)
+    )
+        
+    await session.execute(
+        insert(ArticleCategories)
+            .values([{"article_id": article_id, "category_id": category['id']} for category in validated_categories])
+    )
+    
+    # Set user story status to generated
     await session.execute(
         update(UserStories)
             .where(UserStories.id == user_story_id)
             .values(status=UserStoryStatus.GENERATED)
-    )   
+    )
+    
     await session.commit()
-    article = result.scalars().first()
+    session.expire_all()
+            
+    article = await get_article_by_id_or_user_story_id(session, article_id=article_id)
     return article
+    # result = await session.execute(
+    #     select(GeneratedUserStories)
+    #         .where(GeneratedUserStories.user_story_id == user_story_id)
+    # )
+    # existing = result.scalars().first()
+
+    # if existing:
+    #     print(f"Existing generated story full text: {existing.full_text}")
+    #     result = await session.execute(
+    #         update(GeneratedUserStories)
+    #             .where(GeneratedUserStories.user_story_id == user_story_id)
+    #             .values(
+    #                 slug=slug,
+    #                 title_hash=title_hash,
+    #                 location_scope="unreviewed", # mark as unreviewed until editor reviews
+    #                 **generated
+    #             )
+    #             .returning(GeneratedUserStories)
+    #     )
+    # else:
+    #     result = await session.execute(
+    #         insert(GeneratedUserStories)
+    #             .values(
+    #                 user_story_id=user_story_id,
+    #                 author_id=creator_id,
+    #                 slug=slug,
+    #                 title_hash=title_hash,
+    #                 location_scope="unreviewed", # mark as unreviewed until editor reviews
+    #                 **generated
+    #             )
+    #             .returning(GeneratedUserStories)
+    #     )
+    
+    # await session.execute(
+    #     update(UserStories)
+    #         .where(UserStories.id == user_story_id)
+    #         .values(status=UserStoryStatus.GENERATED)
+    # )   
+    # await session.commit()
+    # article = result.scalars().first()
+    # return article
     
     # stmt = insert(GeneratedUserStories).values(user_story_id=user_story_id, author_id=creator_id, slug=slug, title_hash=title_hash, **generated).returning(
     #     GeneratedUserStories.id,
@@ -890,18 +991,25 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
     # await session.execute(update(UserStories).where(UserStories.id == user_story_id).values({"status": UserStoryStatus.GENERATED}))
     # await session.commit()
     # return result.first()
+       
 
 async def get_generated_user_story(
     session: AsyncSession, user_story: UserStories, force_regenerate: bool = False
 ):
+    """
+    IMPORTANT:
+    Later on as volume scales, maintain two seperate DB sessions: One for read, one for write.
+    This would free the DB connection during the LLM API calls
+    """ 
+
     user_story_id = user_story.id
     creator_id = user_story.author_id
     mode = user_story.mode
     
     # print(f"Generating user story {user_story_id} in mode {mode}")
 
-    existing_article = await get_generated_story_db(session, user_story_id)
-    # print(f"Existing generated story: {existing_article}")
+    existing_article = await get_article_by_id_or_user_story_id(session, user_story_id=user_story_id)
+    # print(f"Existing generated article: {existing_article}")
     
     if existing_article and user_story.status == UserStoryStatus.GENERATED and not force_regenerate:
         return existing_article
@@ -922,10 +1030,23 @@ async def get_generated_user_story(
                 detail="Error while generating article or JSON parsing",
             )
     elif mode == 'manual':
+        if not existing_article:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Manual mode requires an existing generated article"
+            )
+
         title = existing_article.title
+        snippet = existing_article.snippet
         full_text = existing_article.full_text
-        
-        generated = await generate_manual_story_metadata(full_text, title)
+
+        if not title or not full_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Title and full text must be present before generating metadata"
+            )
+
+        generated = await generate_manual_story_metadata(full_text, title, snippet)
         
         # print(f"Generated manual story: {generated}")
     else:
@@ -950,42 +1071,43 @@ async def get_generated_user_story(
 
 from src.schemas import UploadedImageKeys
 
-async def update_user_story_status(session: AsyncSession, generated_article: GeneratedUserStories, request: UploadedImageKeys | None=None):
-    story_mode = generated_article.user_story.mode
-    # --- Determine final image list ---
-    if story_mode == "ai":
-        # AI mode → images only come at submission time
-        final_images = request.images_keys if (request and request.images_keys is not None) else []
-    else:
-        # Manual mode → keep existing unless explicitly replaced
-        if request and request.images_keys is not None:
-            final_images = request.images_keys
-        else:
-            final_images = generated_article.images_keys or []
-
-    # --- Update images ---
-    await session.execute(
-        update(GeneratedUserStories)
-            .where(GeneratedUserStories.id == generated_article.id)
-            .values(images_keys=final_images)
-    )
-
+async def update_user_story_status(
+    session: AsyncSession,
+    user_story_id: UUID,
+    submitted_at: datetime | None = None
+):
     # --- Update status to submitted ---
     await session.execute(
         update(UserStories)
-            .where(UserStories.id == generated_article.user_story_id)
-            .values(status=UserStoryStatus.SUBMITTED)
+            .where(UserStories.id == user_story_id)
+            .values(
+                status=UserStoryStatus.SUBMITTED,
+                submitted_at= submitted_at if submitted_at else datetime.now()
+            )
     )
-
-    await session.commit()
-
-    return {"status": "success"}
 
     
 async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story_status: str, limit: int = 10, offset: int = 0):
     try:
-        query = select(UserStories.id, UserStories.title, UserStories.context, UserStories.mode, UserStories.status, UserStories.publish_status, UserStories.created_at.label('initiated_at'), GeneratedUserStories.title.label('generated_title'), GeneratedUserStories.snippet.label('generated_snippet'), GeneratedUserStories.full_text.label('generated_story_full_text'), GeneratedUserStories.category, GeneratedUserStories.slug, GeneratedUserStories.tags, get_article_images_json_query(), GeneratedUserStories.created_at.label('generated_at')).join(GeneratedUserStories, onclause=UserStories.id == GeneratedUserStories.user_story_id, isouter=True).filter(UserStories.author_id == curr_creator_id)
-
+        query = select(
+            UserStories.id,
+            UserStories.mode,
+            UserStories.status,
+            UserStories.context,
+            UserStories.publish_status,
+            UserStories.created_at.label('initiated_at'),
+            GeneratedUserStories.title.label('generated_title'),
+            GeneratedUserStories.snippet.label('generated_snippet'),
+            GeneratedUserStories.created_at.label('generated_at'),
+            GeneratedUserStories.published_at
+        ).join(
+            GeneratedUserStories,
+            onclause=UserStories.id == GeneratedUserStories.user_story_id,
+            isouter=True
+        ).where(
+            UserStories.author_id == curr_creator_id
+        )
+            
         if story_status == 'draft':
             query = query.filter(or_(UserStories.status == UserStoryStatus.COLLECTING, UserStories.status == UserStoryStatus.GENERATED))
         elif story_status == 'submitted':
@@ -1017,24 +1139,38 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
                 status.HTTP_403_FORBIDDEN,
                 detail="Cannot edit other creator's articles"
             )
+            
+        user_story = article_db.user_story
+        publish_status = user_story.publish_status
+        status = user_story.status
         
-        if article_db.user_story.publish_status == UserStoryPublishStatus.PUBLISHED:
+        if publish_status == UserStoryPublishStatus.PUBLISHED or status == UserStoryStatus.SUBMITTED:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                detail="cannot edit a published article"
+                detail="cannot edit a published or submitted article"
             )
 
-        updates_dict = updates.model_dump(exclude_none=True)
+        allowed_fields = ['title', 'snippet', 'full_text', 'images_keys']
+        
+        updates_dict = updates.model_dump(exclude_unset=True)
         if not updates_dict:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='all fields cannot be null')
         
-        result = await session.execute(update(GeneratedUserStories).where(GeneratedUserStories.id == generated_article_id, GeneratedUserStories.author_id == curr_creator_id).values(**updates_dict).returning(GeneratedUserStories))
+        updates_dict = {k: v for k, v in updates_dict.items() if k in allowed_fields}
+        
+        result = await session.execute(
+            update(GeneratedUserStories)
+                .where(
+                    GeneratedUserStories.id == generated_article_id,
+                    GeneratedUserStories.author_id == curr_creator_id
+                )
+                .values(**updates_dict)
+                .returning(GeneratedUserStories)
+        )
         await session.commit()
         
         edited_article = result.scalars().first()
 
-        images_keys = edited_article.images_keys
-        edited_article.images = [{"key": key, "url": get_full_s3_object_url(key)} for key in edited_article.images_keys] if images_keys else []
         return edited_article
     
     except DatabaseError as e:
