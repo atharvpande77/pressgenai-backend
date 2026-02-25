@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -19,8 +20,8 @@ class Settings(BaseSettings):
     
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
-    AWS_ACCOUNT_ID: str
-    AWS_PROFILE: str
+    AWS_ACCOUNT_ID: Optional[str] = None
+    AWS_PROFILE: Optional[str] = None
     AWS_REGION: str
     PROFILE_IMAGE_S3_BUCKET: str
     
