@@ -32,7 +32,7 @@ class AuthorResponseSchema(BaseModel):
 
     id: UUID
     first_name: str
-    last_name: str
+    last_name: str | None = None
     email: EmailStr
     username: str | None = None
     phone: str | None = None
@@ -42,7 +42,8 @@ class AuthorResponseSchema(BaseModel):
     highest_education_other_specify: str | None = None
     work_status: str | None = None
     work_status_other_specify: str | None = None
-    city: CityResponseSchema
+    city: str | None = None
+    city_id: UUID | None = None
     profile_image: str | None = None
     updated_at: datetime | None = None
     onboarding_completed: bool = False

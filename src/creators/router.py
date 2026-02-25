@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, status, UploadFile, Form
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -7,10 +7,8 @@ from uuid import UUID
 
 from src.config.database import get_session
 from src.creators.schemas import (
-    CreateAuthorSchema,
     AuthorResponseSchema,
     CreatorUpdatePasswordSchema,
-    UpdateProfileSchema,
     CreatorOnboarding,
     CityResponseSchema
 )

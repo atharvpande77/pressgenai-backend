@@ -112,13 +112,13 @@ async def create_author_db(
             username=unique_username,
             email=user.email,
             bio=bio,
-            city={"id": user.city_id if city else None,
-                  "name": city.name if city else None
-                },
+            city=city.name if city else None,
+            city_id=city_id if city else None,
             profile_image=profile_img_url
         )
         
     except IntegrityError as ie:
+        await session.rollback()
         print(ie, ie.detail)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
