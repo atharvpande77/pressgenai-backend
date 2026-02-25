@@ -3,7 +3,10 @@ import aioboto3
 from src.config.settings import settings
 
 session = aioboto3.Session(
-    profile_name=settings.AWS_PROFILE
+    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    region_name=settings.AWS_REGION,
+    aws_account_id=settings.AWS_ACCOUNT_ID
 )
 
 async def get_s3_client():

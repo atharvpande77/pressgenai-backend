@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     JWT_SECRET: str
     JWT_REFRESH_SECRET: str
-
+    
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_ACCOUNT_ID: str
     AWS_PROFILE: str
     AWS_REGION: str
     PROFILE_IMAGE_S3_BUCKET: str
