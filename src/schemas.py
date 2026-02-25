@@ -236,6 +236,7 @@ def serialize_categories(categories: list[str] | None) -> list[str]:
         return []
     
     return [{"category_value": cat, "category_name": get_category_name(cat)} for cat in categories]
+
 class CategorySerializerMixin:
     """Mixin for category serialization"""
     
