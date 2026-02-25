@@ -1,11 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Annotated
+from uuid import UUID
 
 class CategoryItem(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
     name: str
     value: str
     
 class CityItem(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
     name: str

@@ -114,7 +114,7 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
                 eu.profile_image_key,
                 us.submitted_at,      
                 gus.published_at
-            ORDER BY MAX(us.created_at) DESC
+            ORDER BY MAX(gus.created_at) DESC
             LIMIT :limit
             OFFSET :offset;
         """)

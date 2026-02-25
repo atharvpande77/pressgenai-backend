@@ -30,7 +30,12 @@ target_metadata = Base.metadata
 from src.config.settings import settings
 # enviornment = settings.ENVIRONMENT
 # db_cnx_str = settings.POSTGRES_CNX_STR if enviornment == 'PROD' else settings.POSTGRES_CNX_STR_LOCAL
-config.set_main_option("sqlalchemy.url", settings.POSTGRES_CNX_STR_LOCAL.replace('asyncpg', 'psycopg2'))
+environment=settings.ENV
+
+if environment == 'dev':
+    config.set_main_option("sqlalchemy.url", settings.DEV_DB_CNX_STR.replace('asyncpg', 'psycopg2'))
+else:
+    config.set_main_option("sqlalchemy.url", settings.POSTGRES_CNX_STR_LOCAL.replace('asyncpg', 'psycopg2'))
 
 
 def run_migrations_offline() -> None:

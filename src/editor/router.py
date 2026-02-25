@@ -278,10 +278,10 @@ async def reject_article(
     user_story = article_db.user_story
     publish_status = user_story.publish_status
     
-    if publish_status == UserStoryPublishStatus.REJECTED or publish_status == UserStoryPublishStatus.PUBLISHED:
+    if publish_status == UserStoryPublishStatus.REJECTED or publish_status == UserStoryPublishStatus.PENDING:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="Cannot reject an article that is already rejected or published"
+            detail="Cannot reject an article that is already rejected or is pending"
         )
         
     await set_publish_status(

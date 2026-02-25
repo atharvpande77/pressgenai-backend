@@ -100,7 +100,7 @@ def make_images_mixin(field_name: str = "images_keys"):
         def images(self) -> list[dict[str, str]] | None:
             keys = getattr(self, field_name, None)
             if not keys:
-                return None
+                return []
             return [
                 {
                     "key": image,

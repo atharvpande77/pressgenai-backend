@@ -5,8 +5,13 @@ from fastapi import Depends
 
 from src.config.settings import settings
 
+environment=settings.ENV
+if environment == 'dev':
+    url = settings.DEV_DB_CNX_STR
+else:
+    url = settings.POSTGRES_CNX_STR_LOCAL
 
-engine = create_async_engine(url=settings.POSTGRES_CNX_STR_LOCAL)
+engine = create_async_engine(url=url)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()

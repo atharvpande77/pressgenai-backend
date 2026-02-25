@@ -30,6 +30,12 @@ def upgrade() -> None:
     sa.Column('role', postgresql.ENUM('creator', 'editor', 'admin', name='user_roles'), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.execute("""
+    INSERT INTO users (id, first_name, last_name, email, password, role)
+    SELECT id, first_name, last_name, email, password, 'creator'
+    FROM authors
+    """)
+    
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_index(op.f('ix_users_role'), 'users', ['role'], unique=False)
