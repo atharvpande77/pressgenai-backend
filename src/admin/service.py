@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 from uuid import UUID
+from datetime import datetime, timedelta
 
 from src.creators.service import generate_unique_username
 from src.models import Users, UserRoles, EditorCategories, EditorCities
@@ -29,7 +30,8 @@ async def store_user(
                 phone=phone,
                 username=username,
                 added_by=admin_id,
-                approved_by=admin_id
+                approved_by=admin_id,
+                approved_at=datetime.now()+timedelta(hours=5, minutes=30),
             )
             .returning(Users)
     )

@@ -73,6 +73,18 @@ class NewInvite(BaseModel):
     role: UserRoles | None = Field(default=UserRoles.CREATOR)
 
 
+class AdminCreateUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    first_name: str
+    last_name: str | None = None
+    email: str
+    phone: str | None = None
+    username: str | None = None
+    role: UserRoles
+
+
 ProfileImageMixin = make_profile_image_mixin("profile_image_key")
 
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.exc import IntegrityError
 from typing import Annotated
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import select, update
@@ -8,7 +9,7 @@ from uuid import UUID
 from src.auth.dependencies import role_checker
 from src.config.database import Session
 from src.models import Users, UserRoles, GeneratedUserStories, UserStories, UserStoryPublishStatus, Authors, Cities, Categories, UserLinks
-from src.admin.schemas import NewInvite, NewUserSchema, AdminPublishedArticleItem, UpdateArticleStatusSchema
+from src.admin.schemas import NewInvite, NewUserSchema, AdminCreateUserResponse, AdminPublishedArticleItem, UpdateArticleStatusSchema
 from src.creators.utils import hash_password
 from src.admin.service import store_user, store_editor_cities_and_categories
 
@@ -19,11 +20,14 @@ admin_role_dep = Annotated[Users, Depends(role_checker(UserRoles.ADMIN))]
 
 @router.post(
     '/',
+    response_model=AdminCreateUserResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="Create new user",
     description="Create a new user (creator or editor) with specified roles and permissions. Creators require a city; editors require cities and optionally categories.",
     responses={
         201: {"description": "User created successfully"},
         400: {"description": "Invalid city ID, category ID, or request data"},
+        409: {"description": "User already exists"},
     }
 )
 async def add_new_user(
@@ -34,16 +38,25 @@ async def add_new_user(
     hashed_password = hash_password(new_user.password)
     role = new_user.role
     
-    user = await store_user(
-        session=session,
-        admin_id=curr_admin.id,
-        email=new_user.email,
-        password=hashed_password,
-        first_name=new_user.first_name,
-        role=role,
-        last_name=new_user.last_name,
-        phone=new_user.phone_number,
-    )
+    try:
+        user = await store_user(
+            session=session,
+            admin_id=curr_admin.id,
+            email=new_user.email,
+            password=hashed_password,
+            first_name=new_user.first_name,
+            role=role,
+            last_name=new_user.last_name,
+            phone=new_user.phone_number,
+        )
+    except IntegrityError as exc:
+        await session.rollback()
+        if getattr(exc, "orig", None) and getattr(exc.orig, "pgcode", None) == "23505":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="user already exists"
+            ) from exc
+        raise
     user_id = user.id
 
     if role == UserRoles.CREATOR:
@@ -76,7 +89,7 @@ async def add_new_user(
                         "user_id": user_id,
                         "link_type": link.link_type,
                         "platform": link.platform,
-                        "url": link.url,
+                        "url": str(link.url),
                         "description": link.description,
                     }
                     for link in new_user.links
@@ -106,7 +119,7 @@ async def add_new_user(
     await session.commit()
     await session.refresh(user)
 
-    return user
+    return AdminCreateUserResponse.model_validate(user)
 
 
 # Add invite features later.
