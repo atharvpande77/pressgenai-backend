@@ -231,7 +231,7 @@ async def publish_article(
         
     if (article.location_scope == LocationScope.UNREVIEWED) or (article.city_id is None) or (not article.title) or (not article.full_text):
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            422,
             detail="Cannot publish an article with missing or incomplete metadata"
         )
     
