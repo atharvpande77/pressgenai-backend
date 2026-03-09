@@ -10,3 +10,4 @@ src/news/__pycache__
  *.pyc
  *.pyo
 *.pyd
+opencode.json

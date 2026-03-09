@@ -7,7 +7,7 @@ from src.aws.utils import get_images_with_urls
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError, IntegrityError
-from sqlalchemy import select, update, or_, and_, func, literal, case, text
+from sqlalchemy import select, update, delete, or_, and_, func, literal, case, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased, selectinload, contains_eager
 from fastapi import HTTPException, status
@@ -153,11 +153,30 @@ async def edit_article_db(
     article_id: UUID,
     values: dict
 ):
+    category_ids = values.pop("categories", None)
+    updated_story = None
+
+    if values:
+        result = await session.execute(
+            update(GeneratedUserStories)
+                .where(GeneratedUserStories.id == article_id)
+                .values(**values)
+                .returning(GeneratedUserStories)
+        )
+        updated_story = result.scalars().first()
+
+    if category_ids is not None:
+        await store_article_categories(
+            session=session,
+            article_id=article_id,
+            category_ids=category_ids
+        )
+
     result = await session.execute(
-        update(GeneratedUserStories)
+        select(GeneratedUserStories)
             .where(GeneratedUserStories.id == article_id)
-            .values(**values)
-            .returning(GeneratedUserStories)
+            .options(selectinload(GeneratedUserStories.categories))
+            .execution_options(populate_existing=True)
     )
     updated_story = result.scalars().first()
     return updated_story
@@ -450,6 +469,34 @@ async def add_creator_db(session: AsyncSession, curr_editor_id: UUID, payload: C
         
 from src.models import Categories
 
+
+async def store_article_categories(
+    session: AsyncSession,
+    article_id: UUID,
+    category_ids: list[UUID]
+):
+    unique_category_ids = list(dict.fromkeys(category_ids))
+
+    await session.execute(
+        delete(ArticleCategories)
+            .where(ArticleCategories.article_id == article_id)
+    )
+
+    if not unique_category_ids:
+        return
+
+    await session.execute(
+        insert(ArticleCategories)
+            .values([
+                {"article_id": article_id, "category_id": category_id}
+                for category_id in unique_category_ids
+            ])
+            .on_conflict_do_nothing(
+                index_elements=["article_id", "category_id"]
+            )
+    )
+
+
 async def validate_categories(
     session: AsyncSession,
     category_ids: list[UUID]
@@ -466,7 +513,7 @@ async def validate_categories(
     
     if invalid:
         print(f"Found invalid categories: {', '.join(invalid)}")
-    return validated_category_ids 
+    return list(validated_category_ids_set)
     
     
 async def get_city_by_id(session: AsyncSession, city_id: UUID):

@@ -129,7 +129,7 @@ async def edit_article(
     curr_editor: EditorRoleDep,
     payload: EditArticleSchema
 ):
-    values = payload.model_dump(exclude_none=True)
+    values = payload.model_dump(exclude_unset=True)
     if not values:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -169,7 +169,9 @@ async def edit_article(
                 detail="invalid city id"
             )
         update_fields['city_id'] = city_id
-        
+    
+    # print(f"Article update fields:\n{update_fields}")
+    
     updated_article = await edit_article_db(
         session,
         article_id=article.id,
