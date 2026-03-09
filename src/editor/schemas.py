@@ -54,11 +54,11 @@ class EditArticleSchema(BaseModel):
     title: Annotated[str | None, Field(min_length=ContentSizeLimits.TITLE_MIN, max_length=ContentSizeLimits.TITLE_MAX)] = None
     snippet: Annotated[str | None, Field(min_length=ContentSizeLimits.SNIPPET_MIN, max_length=ContentSizeLimits.SNIPPET_MAX)] = None
     full_text: Annotated[str | None, Field(min_length=ContentSizeLimits.FULL_TEXT_MIN, max_length=ContentSizeLimits.FULL_TEXT_MAX)] = None
-    categories: list[UUID] | None = Field(default=[], min_length=ContentSizeLimits.CATEGORY_MIN, max_length=ContentSizeLimits.CATEGORY_MAX)
+    categories: list[UUID] | None = Field(default_factory=list, min_length=ContentSizeLimits.CATEGORY_MIN, max_length=ContentSizeLimits.CATEGORY_MAX)
     location_scope: LocationScope | None = None
     city_id: UUID | None = None
-    tags: list[str] | None = Field(default=[], max_length=ContentSizeLimits.TAGS_MAX)
-    images_keys: list[str] | None = Field(default=[], max_length=3)
+    tags: list[str] | None = Field(default_factory=list, max_length=ContentSizeLimits.TAGS_MAX)
+    images_keys: list[str] | None = Field(default_factory=list, max_length=3)
     
 
 class RejectArticleSchema(BaseModel):

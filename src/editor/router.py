@@ -140,7 +140,7 @@ async def edit_article(
     curr_editor_id = curr_editor.id
     
     update_fields = {
-        k: v for k, v in values.items() if k in ['title', 'snippet', 'full_text', 'tags', 'images_keys', 'categories', 'location_scope', 'city']
+        k: v for k, v in values.items() if k in ['title', 'snippet', 'full_text', 'tags', 'images_keys', 'categories', 'location_scope', 'city_id']
     }
     categories = update_fields.get('categories')
     
@@ -157,7 +157,7 @@ async def edit_article(
             
         update_fields['categories'] = validated_category_ids
         
-    city_id = update_fields.get('city')
+    city_id = update_fields.get('city_id')
     if city_id:
         valid_city_id = await get_city_by_id(
             session,
@@ -169,8 +169,6 @@ async def edit_article(
                 detail="invalid city id"
             )
         update_fields['city_id'] = city_id
-    
-    # print(f"Article update fields:\n{update_fields}")
     
     updated_article = await edit_article_db(
         session,

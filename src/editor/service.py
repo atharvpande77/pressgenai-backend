@@ -153,14 +153,20 @@ async def edit_article_db(
     article_id: UUID,
     values: dict
 ):
+    values = dict(values)
     category_ids = values.pop("categories", None)
+    column_values = {
+        key: values[key]
+        for key in ("title", "snippet", "full_text", "tags", "images_keys", "location_scope", "city_id")
+        if key in values
+    }
     updated_story = None
 
-    if values:
+    if column_values:
         result = await session.execute(
             update(GeneratedUserStories)
                 .where(GeneratedUserStories.id == article_id)
-                .values(**values)
+                .values(**column_values)
                 .returning(GeneratedUserStories)
         )
         updated_story = result.scalars().first()
