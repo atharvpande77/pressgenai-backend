@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from openai import OpenAI
+import json
 import time
 import httpx
 from sse_starlette.sse import EventSourceResponse
@@ -10,7 +11,7 @@ from urllib.parse import quote_plus
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse, ChatSessionResponse
 from src.insurance.session_store import get_or_create_thread
-from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id, update_chat_session_with_extracted_data, get_chat_sessions_db
+from src.insurance.service import inject_initial_context, get_police_helpdesk_response, check_if_message_after_ama, get_conversation_by_id, update_chat_session_with_extracted_data, get_chat_sessions_db, calculate_and_store_retirement_plan
 from src.config.database import get_session
 from src.insurance.utils import parse_gps_coords
 from src.config.database import get_session
@@ -154,20 +155,29 @@ async def stream_insurance_chat(
                         # Process each tool call
                         tool_outputs = []
                         for tool_call in tool_calls:
-                            if tool_call.function.name == "extract_user_data":
-                                # Parse the function arguments
-                                import json
-                                function_args = json.loads(tool_call.function.arguments)
-                                
-                                print(f"[extract_user_data] User message: '{message}'")
-                                print(f"[extract_user_data] Received args: {function_args}")
-                                
-                                await update_chat_session_with_extracted_data(db, session_id, thread_id, function_args)
-                                
-                                tool_outputs.append({
-                                    "tool_call_id": tool_call.id,
-                                    "output": json.dumps({"status": "success", "message": "Data captured successfully"})
-                                })
+                            function_name = tool_call.function.name
+                            function_args = json.loads(tool_call.function.arguments or "{}")
+
+                            print(f"[tool_call] name={function_name} args={function_args}")
+
+                            if function_name == "extract_user_data":
+                                tool_result = await update_chat_session_with_extracted_data(
+                                    db, session_id, thread_id, function_args
+                                )
+                            elif function_name == "calculate_retirement_plan":
+                                tool_result = await calculate_and_store_retirement_plan(
+                                    db, session_id, thread_id, function_args
+                                )
+                            else:
+                                tool_result = {
+                                    "status": "error",
+                                    "message": f"Unsupported tool: {function_name}"
+                                }
+
+                            tool_outputs.append({
+                                "tool_call_id": tool_call.id,
+                                "output": json.dumps(tool_result)
+                            })
                                     
                                     
                         async with openai_async_client.beta.threads.runs.submit_tool_outputs_stream(
