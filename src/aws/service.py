@@ -8,12 +8,21 @@ from src.config.settings import settings
 
 
 def get_current_unix_timestamp():
-    return int(time.time()*1000)
+    return int(time.time() * 1000)
+
+
+def _split_filename_ext(filename: str) -> tuple[str, str]:
+    if '.' in filename:
+        name, ext = filename.rsplit('.', 1)
+        return name, ext
+    return filename, ''
+
 
 def get_full_file_key(prefix: str, filename: str):
-    filename_without_ext, ext = filename.split('.')
+    filename_without_ext, ext = _split_filename_ext(filename)
     filename_without_ext = filename_without_ext.replace(' ', '_')
-    return f"{prefix}/{filename_without_ext}_{get_current_unix_timestamp()}.{ext}"
+    extension = f".{ext}" if ext else ''
+    return f"{prefix}/{filename_without_ext}_{get_current_unix_timestamp()}{extension}"
 
 async def upload_file(
     s3,
@@ -23,9 +32,11 @@ async def upload_file(
 ):
     try:
         filename = file.filename.strip()
-        filename_without_extension, ext = filename.split('.')
-        file_extension = ext if filename else 'jpg'
-        key = f"{folder}/{username}/{filename_without_extension}_{get_current_unix_timestamp()}.{file_extension}"
+        filename_without_extension, ext = _split_filename_ext(filename)
+        filename_without_extension = filename_without_extension.replace(' ', '_')
+        file_extension = ext or 'jpg'
+        extension = f".{file_extension}" if file_extension else ''
+        key = f"{folder}/{username}/{filename_without_extension}_{get_current_unix_timestamp()}{extension}"
 
         file_content = await file.read()
 

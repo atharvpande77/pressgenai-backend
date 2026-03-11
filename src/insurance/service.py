@@ -1,7 +1,14 @@
+import logging
+
+import httpx
 import openai
+from fastapi import HTTPException, Request
+from pydantic import BaseModel
+
 from src.config.settings import settings
 
 client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
 
 POLICE_HELPDESK_SYSTEM_PROMPT = """You are an official Nagpur City Police helpdesk assistant.
 
@@ -187,8 +194,7 @@ async def get_curr_location_jurisdiction_and_nearest_station(session: AsyncSessi
     }
     
 import httpx
-from fastapi import HTTPException
-from src.config.settings import settings
+from fastapi import HTTPException, Request
 
 async def send_message_to_user(message: str, phone: str):
     # # Send response to WhatsApp via WATI API
@@ -265,3 +271,66 @@ async def get_chat_sessions_db(
             .offset(offset)
     )
     return result.scalars().all()
+
+
+RATE_LIMITER_URL = "http://localhost:8000/api/v1/limiter/check"
+
+
+class CheckResponse(BaseModel):
+    allowed: bool
+    remaining: int
+    reset_in_seconds: int
+
+
+async def check_rate_limit(request: Request):
+    headers = dict(request.headers)
+    # logger.info("Rate limit check headers: %s", headers)
+
+    ip = request.client.host if request.client else "unknown"
+    
+    # print("Rate limit check IP: %s", ip)
+    
+    payload = {"endpoint": request.url.path, "ip": ip}
+    # print(payload)
+
+    async with httpx.AsyncClient(timeout=5.0) as http_client:
+        try:
+            response = await http_client.post(RATE_LIMITER_URL, json=payload)
+        except httpx.RequestError as error:
+            print("Rate limiter request failed: %s", error)
+            return
+
+        if response.status_code == 429:
+            body = response.json()
+            reset_in = body.get("reset_in")
+            raise HTTPException(
+                status_code=429,
+                detail=body.get("message", "Rate limit exceeded"),
+                headers={"Retry-After": str(reset_in)} if reset_in is not None else None,
+            )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            print("Unexpected rate limiter response: %s", error)
+            raise HTTPException(status_code=502, detail="Rate limiter unavailable")
+
+        try:
+            check_response = CheckResponse(**response.json())
+        except ValueError as error:
+            print("Failed to parse rate limiter response: %s", error)
+            raise HTTPException(status_code=502, detail="Rate limiter returned invalid data")
+
+        if not check_response.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded",
+                headers={"Retry-After": str(check_response.reset_in_seconds)},
+            )
+
+        print(
+            "Rate limiter allowed=%s remaining=%d reset_in=%d",
+            check_response.allowed,
+            check_response.remaining,
+            check_response.reset_in_seconds,
+        )

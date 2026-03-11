@@ -189,6 +189,8 @@ async def edit_article(
         )
         
     await session.commit()
+    if updated_article:
+        await session.refresh(updated_article)
     return updated_article
 
 from src.models import LocationScope

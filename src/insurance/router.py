@@ -98,13 +98,24 @@ async def cancel_active_runs(thread_id: str):
 
 #     raise HTTPException(status_code=500, detail="No assistant response found")
 
+from typing import Any
+from src.insurance.service import check_rate_limit
+
+
+@router.post("/mock/chat")
+async def mock_chat(message: str, _: Any = Depends(check_rate_limit)):
+    import asyncio
+    await asyncio.sleep(0.5)
+    return {"reply": message}
+
+
 
 @router.get("/chat/stream")
 async def stream_insurance_chat(
     db: Session,
     session_id: str,
     message: str,
-    goal: str | None = None
+    goal: str | None = None,
 ):
 
     chat_session = await get_or_create_thread(db, session_id, goal, openai_async_client)
