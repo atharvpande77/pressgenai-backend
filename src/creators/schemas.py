@@ -100,27 +100,44 @@ class CreatorLink(BaseModel):
     
 
 class CreatorOnboarding(BaseModel):
-    city_id: UUID
+    city_id: UUID | None = None
     highest_education: HighestEducation
     work_status: WorkStatus
+    date_of_birth: date
     education_other_specify: str | None = Field(default=None, max_length=20)
     work_status_other_specify: str | None = Field(default=None, max_length=20)
-    links: list[CreatorLink] = Field(default=[])
+    links: list[CreatorLink] = Field(default_factory=list)
 
     @field_validator('education_other_specify')
     @classmethod
     def validate_education_other(cls, v: str | None, info) -> str | None:
-        if info.data.get('highest_education') == HighestEducation.OTHER and not v:
+        highest = info.data.get('highest_education')
+        if highest == HighestEducation.OTHER and not v:
             raise ValueError('Please specify your education when selecting "other"')
-        if info.data.get('highest_education') != HighestEducation.OTHER and v:
+        if highest and highest != HighestEducation.OTHER and v:
             raise ValueError('Specify field should only be provided when education is "other"')
         return v
 
     @field_validator('work_status_other_specify')
     @classmethod
     def validate_work_status_other(cls, v: str | None, info) -> str | None:
-        if info.data.get('work_status') == WorkStatus.OTHER and not v:
+        status_value = info.data.get('work_status')
+        if status_value == WorkStatus.OTHER and not v:
             raise ValueError('Please specify your work status when selecting "other"')
-        if info.data.get('work_status') != WorkStatus.OTHER and v:
+        if status_value and status_value != WorkStatus.OTHER and v:
             raise ValueError('Specify field should only be provided when work status is "other"')
         return v
+
+
+class CreatorOnboardingStatus(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    date_of_birth: date | None = None
+    highest_education: HighestEducation | None = None
+    highest_education_other_specify: str | None = None
+    work_status: WorkStatus | None = None
+    work_status_other_specify: str | None = None
+    city_id: UUID | None = None
+    city: str | None = None
+    links: list[CreatorLink] = Field(default_factory=list)
+    onboarding_completed: bool = False

@@ -7,7 +7,13 @@ import secrets
 from typing import Any
 from uuid import UUID
 
-from src.creators.schemas import CreateAuthorSchema, AuthorResponseSchema, UpdateProfileSchema, CreatorLink
+from src.creators.schemas import (
+    CreateAuthorSchema,
+    AuthorResponseSchema,
+    UpdateProfileSchema,
+    CreatorLink,
+    CreatorOnboardingStatus,
+)
 from src.models import Authors, Users, UserRoles, Cities
 from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
@@ -242,26 +248,49 @@ from src.models import EditorCities, UserLinks
 async def store_creator_onboarding(
     session: AsyncSession,
     creator_id: UUID,
-    date_of_birth: date,
-    city_id: UUID,
-    highest_education: str,
-    work_status: str,
+    date_of_birth: date | None = None,
+    city_id: UUID | None = None,
+    highest_education: str | None = None,
+    work_status: str | None = None,
     highest_educatation_specify: str | None = None,
     work_status_specify: str | None = None,
 ):
-    existing_creator = await session.get(Authors, creator_id)
-    
-    existing_creator.date_of_birth = date_of_birth
-    existing_creator.city_id = city_id
-    existing_creator.highest_education = highest_education
-    existing_creator.work_status = work_status
-    existing_creator.highest_education_other_specify = highest_educatation_specify
-    existing_creator.work_status_other_specify = work_status_specify
-    
-        
+    author = await session.get(Authors, creator_id)
+    if not author:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Creator profile not found")
+
+    if date_of_birth is not None:
+        author.date_of_birth = date_of_birth
+
+    if highest_education is not None:
+        author.highest_education = highest_education
+
+    if work_status is not None:
+        author.work_status = work_status
+
+    if highest_educatation_specify is not None:
+        author.highest_education_other_specify = highest_educatation_specify
+
+    if work_status_specify is not None:
+        author.work_status_other_specify = work_status_specify
+
+    if city_id is not None:
+        city = await session.get(Cities, city_id)
+        if not city:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="invalid city id",
+            )
+        author.city_id = city_id
+
+    return author
+
 async def _delete_existing_links_or_cities(session: AsyncSession, table: EditorCities | UserLinks, creator_id: UUID):
+    column = getattr(table, "editor_id", None) or getattr(table, "user_id", None)
+    if column is None:
+        raise RuntimeError("Unable to determine foreign key column for deletion")
     await session.execute(
-        delete(table).where(table.editor_id == creator_id)
+        delete(table).where(column == creator_id)
     )
 
 async def store_creator_links(
@@ -273,7 +302,45 @@ async def store_creator_links(
     
     await session.execute(
         insert(UserLinks)
-            .values([{"user_id": creator_id, "url": link.url, "link_type": link.link_type, "platform": link.platform, "description": link.description} for link in links])
+            .values([{"user_id": creator_id, "url": str(link.url), "link_type": link.link_type, "platform": link.platform, "description": link.description} for link in links])
+    )
+
+
+async def fetch_creator_onboarding_status(
+    session: AsyncSession,
+    creator_id: UUID
+) -> CreatorOnboardingStatus | None:
+    author_profile = await session.get(Authors, creator_id)
+    if not author_profile:
+        return None
+
+    links_stmt = await session.execute(
+        select(UserLinks).where(UserLinks.user_id == creator_id)
+    )
+    stored_links = links_stmt.scalars().all()
+
+    creator_links = [
+        CreatorLink(
+            link_type=link.link_type,
+            url=link.url,
+            platform=link.platform,
+            description=link.description,
+        )
+        for link in stored_links
+    ]
+
+    creator_city = author_profile.city
+
+    return CreatorOnboardingStatus(
+        date_of_birth=author_profile.date_of_birth,
+        highest_education=author_profile.highest_education,
+        highest_education_other_specify=author_profile.highest_education_other_specify,
+        work_status=author_profile.work_status,
+        work_status_other_specify=author_profile.work_status_other_specify,
+        city_id=creator_city.id if creator_city else None,
+        city=creator_city.name if creator_city else None,
+        links=creator_links,
+        onboarding_completed=author_profile.onboarding_completed,
     )
     
 
@@ -300,7 +367,7 @@ async def complete_creator_onboarding(
     work_status_other_specify: str | None = None,
     links: list[CreatorLink] | None = None,
 ):
-    onboarding_id = await store_creator_onboarding(
+    await store_creator_onboarding(
             session=session,
             creator_id=creator_id,
             date_of_birth=date_of_birth,
@@ -317,5 +384,5 @@ async def complete_creator_onboarding(
     
     await update_onboarding_status(session, creator_id, True)
         
-    return onboarding_id
+    return None
 

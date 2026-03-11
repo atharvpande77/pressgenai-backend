@@ -78,7 +78,7 @@ async def add_new_user(
                 work_status=new_user.work_status,
                 work_status_other_specify=new_user.work_status_other_specify,
                 city_id=city_id,
-                onboarding_completed=True,
+                onboarding_completed=False,
             )
         )
         if new_user.links:

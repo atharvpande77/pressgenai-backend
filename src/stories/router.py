@@ -5,7 +5,7 @@ import traceback
 from datetime import datetime
 
 from src.config.database import get_session
-from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema, UploadedImageKeys,CreateAIStoryResponse, CreateManualStoryResponse
+from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema,CreateAIStoryResponse, CreateManualStoryResponse
 from src.stories.service import add_stories_to_db, get_location_status, fetch_stories_from_db, add_location_record, update_location_timestamp, get_story_by_id, create_user_story_db, get_generated_user_story, upsert_answer, generate_and_store_story_questions, get_user_story_or_404, update_user_story_status, get_user_stories_db, get_complete_story_by_id, edit_generated_article_db
 from src.stories.utils import needs_fetching, fetch_news_articles, rewrite_story, get_all_news, get_story_status_dep
 from src.models import UserStories, Users, UserRoles, GeneratedUserStories, UserStoryStatus
@@ -59,9 +59,7 @@ async def get_news_feed(request: LocationDataSchema, session: Annotated[AsyncSes
             detail="An error occurred while fetching news articles"
         )
         
-@router.patch('/select/{id}', include_in_schema=False)
-async def select_story(id, session: Annotated[AsyncSession, Depends(get_session)]):
-    ...
+
 
 @router.post('/generate/{id}', include_in_schema=False)
 async def generate_article(id: str, options: GenerateOptionsSchema, session: Annotated[AsyncSession, Depends(get_session)]):
@@ -84,23 +82,7 @@ async def generate_article(id: str, options: GenerateOptionsSchema, session: Ann
             status_code=500, 
             detail="An error occurred while generating the story"
         )
-
-
-# @router.post('/res')
-# async def get_gpt_response(request: ReqSchema):
-#     try:
-#         response = await get_prompt_response(request)
-#         return {
-#             "response": response
-#         }
-
-#     except Exception as e:
-#         print(e)
-#         return HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
+        
 
 @router.get(
     "/user",
