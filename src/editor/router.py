@@ -321,8 +321,10 @@ async def reject_article(
     }
 )
 async def get_all_creators(session: Annotated[AsyncSession, Depends(get_session)], curr_editor: EditorRoleDep, limit: int = 20, offset: int = 0):
+
+    
     return await get_all_creators_db(
-        session, limit, offset
+        session, curr_editor.id, limit, offset
     )
     
 @router.get(

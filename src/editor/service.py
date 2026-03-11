@@ -319,7 +319,8 @@ async def reject_article_db(session: AsyncSession, article_db: GeneratedUserStor
 
 # Creator management
 async def get_all_creators_db(
-    session: AsyncSession,  
+    session: AsyncSession,
+    curr_editor_id: UUID,
     limit: int = 20, 
     offset: int = 0
 ):  
@@ -347,13 +348,20 @@ async def get_all_creators_db(
             published_articles_count
         )
             .join(Authors, Users.id == Authors.id, isouter=True)
+            .join(
+                EditorCities,
+                and_(
+                    EditorCities.editor_id == curr_editor_id,
+                    EditorCities.city_id == Authors.city_id,
+                ),
+            )
             .where(Users.role == UserRoles.CREATOR)
+            .order_by(Users.added_on.desc())
             .limit(limit)
             .offset(offset)
-            .order_by(Users.added_on.desc())
     )
     creators = result.all()
-    print(creators)
+    # print(creators)
     return creators
 
 async def approve_or_reject_creator_db(session: AsyncSession,  curr_editor_id: UUID, creator_id: UUID, approve: bool):
