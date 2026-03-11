@@ -55,7 +55,7 @@ app.include_router(media_router, prefix="/api/media", tags=["media", "images"])
 app.include_router(common_router, prefix="/api/common", tags=["common"])
 
 
-app.include_router(insurance_router, prefix="/api/insurance", tags=["insurance"])
+app.include_router(insurance_router, prefix="/api/insurance", include_in_schema=False, tags=["insurance"])
 
 hostname = socket.gethostname()
 IPAddr = socket.gethostbyname(hostname)
