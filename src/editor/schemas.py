@@ -1,7 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, EmailStr
 from datetime import datetime
 from uuid import UUID
-from pydantic import computed_field, Field
+from pydantic import computed_field
 from typing import Annotated
 
 from src.models import (
@@ -28,6 +28,33 @@ class CreatorOrEditor(make_profile_image_mixin('profile_image_key'), BaseModel):
     last_name: str  | None = None
     username: str | None = None
     # profile_image: str | None = None
+
+
+class SimpleCategory(BaseModel):
+    id: UUID
+    name: str
+    value: str
+
+
+class SimpleCity(BaseModel):
+    id: UUID
+    name: str
+
+
+class EditorProfile(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str | None = None
+    email: EmailStr
+    username: str | None = None
+    profile_image: str | None = None
+    categories: list[SimpleCategory] = Field(default_factory=list)
+    cities: list[SimpleCity] = Field(default_factory=list)
+
+
+class EditorChangePassword(BaseModel):
+    old_password: str
+    new_password: str
 
 class ArticleItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)

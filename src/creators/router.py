@@ -30,7 +30,6 @@ from src.models import Users, UserRoles
 from src.auth.dependencies import role_checker
 from src.creators.dependencies import validate_profile_image
 from src.aws.client import get_s3_client
-from src.aws.utils import get_full_s3_object_url
 
 router = APIRouter()
 
@@ -230,7 +229,7 @@ async def get_creator_profile(curr_author: curr_author_dep):
         highest_education_other_specify=getattr(author_profile, 'highest_education_other_specify', None),
         work_status=getattr(author_profile, 'work_status', None),
         work_status_other_specify=getattr(author_profile, 'work_status_other_specify', None),
-        profile_image=get_full_s3_object_url(curr_author.profile_image_key) if curr_author.profile_image_key else None,
+        profile_image_key=curr_author.profile_image_key,
         city=author_profile.city.name if author_city else None,
         city_id=author_profile.city.id if author_city else None,
         updated_at=getattr(author_profile, 'updated_at', None),

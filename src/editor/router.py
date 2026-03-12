@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from src.config.database import get_session
-from src.editor.service import get_articles_by_publish_status, edit_article_db, publish_article_db, reject_article_db, get_all_creators_db, approve_or_reject_creator_db, reset_creator_password_db, get_creator_by_id, add_creator_db, get_article_by_id_db
+from src.editor.service import get_articles_by_publish_status, edit_article_db, publish_article_db, reject_article_db, get_all_creators_db, approve_or_reject_creator_db, reset_creator_password_db, get_creator_by_id, add_creator_db, get_article_by_id_db, get_editor_profile_info, update_editor_password
 from src.editor.deps import get_editor_story_status_dep, get_article_or_404, get_verified_article
-from src.editor.schemas import ArticleItem, EditArticleSchema, RejectArticleSchema, RejectedEndpointResponse, ArticleFullResponse, UpdateCreatorPassword, CreatorItem, CreateCreatorSchema
+from src.editor.schemas import ArticleItem, EditArticleSchema, RejectArticleSchema, RejectedEndpointResponse, ArticleFullResponse, UpdateCreatorPassword, CreatorItem, CreateCreatorSchema, EditorProfile, SimpleCategory, SimpleCity, EditorChangePassword
 from src.models import GeneratedUserStories, Users, UserRoles
 from src.auth.dependencies import role_checker
 from src.auth.utils import verify_pw
@@ -20,6 +20,61 @@ router = APIRouter()
 GetArticleDep = Annotated[GeneratedUserStories, Depends(get_article_or_404)]
 EditorRoleDep = Annotated[Users, Depends(role_checker(UserRoles.EDITOR, UserRoles.ADMIN))]
 VerifyArticleDep = Annotated[Users, Depends(get_verified_article)]
+
+
+@router.get(
+    '/',
+    response_model=EditorProfile,
+    summary="Fetch the current editor's profile",
+    description="Returns the editor's basic details plus the categories and cities they can work on.",
+    responses={
+        200: {"description": "Editor profile returned"},
+        401: {"description": "Insufficient permissions - Editor or Admin role required"},
+        500: {"description": "Internal server error while fetching profile"}
+    }
+)
+async def get_editor_profile(
+    session: Session,
+    curr_editor: EditorRoleDep
+):
+    editor, categories, cities = await get_editor_profile_info(session, curr_editor.id)
+
+    return EditorProfile(
+        id=editor.id,
+        first_name=editor.first_name,
+        last_name=editor.last_name,
+        email=editor.email,
+        username=editor.username,
+        profile_image=get_full_s3_object_url(editor.profile_image_key) if editor.profile_image_key else None,
+        categories=[SimpleCategory(id=cat.id, name=cat.name, value=cat.value) for cat in categories],
+        cities=[SimpleCity(id=city.id, name=city.name) for city in cities]
+    )
+
+
+@router.patch(
+    '/password',
+    summary="Change editor password",
+    description="""Update the authenticated editor's password after verifying the current password.
+
+Requires the current password and a new password between 8-128 characters.""",
+    responses={
+        200: {"description": "Password successfully updated"},
+        400: {"description": "Invalid request data"},
+        401: {"description": "Incorrect current password or insufficient permissions"},
+        500: {"description": "Internal server error while updating password"}
+    }
+)
+async def change_editor_password(
+    session: Session,
+    curr_editor: EditorRoleDep,
+    body: EditorChangePassword
+):
+    return await update_editor_password(
+        session,
+        curr_editor,
+        body.old_password,
+        body.new_password
+    )
 
 @router.get(
     '/articles/status/{editor_status}',

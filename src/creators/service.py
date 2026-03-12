@@ -18,7 +18,6 @@ from src.models import Authors, Users, UserRoles, Cities
 from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
 from src.aws.service import upload_file
-from src.aws.utils import get_full_s3_object_url
 
 async def _check_username_exists(session: AsyncSession, username: str) -> bool:
     existing_user = await session.scalar(
@@ -109,7 +108,7 @@ async def create_author_db(
         bio = res.scalar_one_or_none()
         await session.commit()
 
-        profile_img_url = get_full_s3_object_url(user.profile_image_key) if key is not None else None 
+        profile_image_key = key or None
 
         return AuthorResponseSchema(
             id=user.id,
@@ -120,7 +119,7 @@ async def create_author_db(
             bio=bio,
             city=city.name if city else None,
             city_id=city_id if city else None,
-            profile_image=profile_img_url
+            profile_image_key=profile_image_key
         )
         
     except IntegrityError as ie:
@@ -236,7 +235,7 @@ async def update_creator_profile_db(
         email=curr_creator.email,
         username=curr_creator.username,
         bio=author_profile.bio if author_profile else None,
-        profile_image=get_full_s3_object_url(curr_creator.profile_image_key)
+        profile_image_key=curr_creator.profile_image_key
     )
 
 

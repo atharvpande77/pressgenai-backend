@@ -4,6 +4,7 @@ from src.utils.query import get_article_images_json_query, get_profile_image_exp
 from src.creators.utils import hash_password
 from src.editor.schemas import CreatorItem, CreateCreatorSchema
 from src.aws.utils import get_images_with_urls
+from src.auth.utils import verify_pw
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import DatabaseError, IntegrityError
@@ -147,6 +148,60 @@ async def get_article_by_id_db(
     if not article:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no article found for id {article_id}')
     return article
+
+
+async def get_editor_profile_info(
+    session: AsyncSession,
+    editor_id: UUID
+):
+    editor = await session.get(Users, editor_id)
+    if not editor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="editor not found")
+
+    categories_query = await session.execute(
+        select(Categories)
+            .join(EditorCategories, EditorCategories.category_id == Categories.id)
+            .where(EditorCategories.editor_id == editor_id)
+    )
+    categories = categories_query.scalars().all()
+
+    cities_query = await session.execute(
+        select(Cities)
+            .join(EditorCities, EditorCities.city_id == Cities.id)
+            .where(EditorCities.editor_id == editor_id)
+    )
+    cities = cities_query.scalars().all()
+
+    return editor, categories, cities
+
+
+async def update_editor_password(
+    session: AsyncSession,
+    curr_editor: Users,
+    old_password: str,
+    new_password: str
+):
+    if not verify_pw(old_password, curr_editor.password):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail="incorrect password"
+        )
+    new_hashed_password = hash_password(new_password)
+
+    try:
+        await session.execute(
+            update(Users).where(Users.id == curr_editor.id).values(password=new_hashed_password)
+        )
+        await session.commit()
+        return {"status": "success"}
+    except Exception as e:
+        await session.rollback()
+        msg = str(e)
+        print(f"Unknown error while updating password: {msg}")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=msg
+        )
 
 async def edit_article_db(
     session: AsyncSession,

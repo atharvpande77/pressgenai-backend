@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator, Ht
 from uuid import UUID
 from enum import Enum
 from datetime import datetime, date
+from src.schemas import ProfileImageMixin
 
 class CreateAuthorSchema(BaseModel):
     first_name: str = Field(max_length=100)
@@ -27,7 +28,7 @@ class CityResponseSchema(BaseModel):
     id: UUID | None = None
     name: str | None = None
 
-class AuthorResponseSchema(BaseModel):
+class AuthorResponseSchema(ProfileImageMixin, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -44,7 +45,7 @@ class AuthorResponseSchema(BaseModel):
     work_status_other_specify: str | None = None
     city: str | None = None
     city_id: UUID | None = None
-    profile_image: str | None = None
+    profile_image_key: str | None = None
     updated_at: datetime | None = None
     onboarding_completed: bool = False
 
