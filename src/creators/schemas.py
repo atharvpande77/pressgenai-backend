@@ -45,7 +45,6 @@ class AuthorResponseSchema(ProfileImageMixin, BaseModel):
     work_status_other_specify: str | None = None
     city: str | None = None
     city_id: UUID | None = None
-    profile_image_key: str | None = None
     updated_at: datetime | None = None
     onboarding_completed: bool = False
 

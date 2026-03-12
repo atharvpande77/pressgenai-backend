@@ -13,8 +13,6 @@ session_kwargs = {
     "aws_secret_access_key": settings.AWS_SECRET_ACCESS_KEY,
     "region_name": settings.AWS_REGION,
 }
-if settings.ENV == "dev" and settings.AWS_PROFILE:
-    session_kwargs["profile_name"] = settings.AWS_PROFILE
 
 session = aioboto3.Session(**session_kwargs)
 

@@ -7,10 +7,9 @@ class Settings(BaseSettings):
         env_file_encoding = 'utf-8'
     )
 
-    # POSTGRES_CNX_STR: str
-    POSTGRES_CNX_STR_LOCAL: str
+    POSTGRES_CNX_STR_LOCAL: Optional[str] = None
     ENV: str
-    DEV_DB_CNX_STR: str
+    DEV_DB_CNX_STR: Optional[str] = None
     SERP_API_KEY: str
     EXHAUSTED_SERP_API_KEY1: str
     EXHAUSTED_SERP_API_KEY2: str
@@ -20,9 +19,9 @@ class Settings(BaseSettings):
     
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
-    AWS_ACCOUNT_ID: Optional[str] = None
-    AWS_PROFILE: Optional[str] = None
+    AWS_ACCOUNT_ID: str
     AWS_REGION: str
+    AWS_PROFILE: Optional[str] = None
     PROFILE_IMAGE_S3_BUCKET: str
     
     RETIREMENT_PLANNING_ASSISTANT_ID: str
