@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import Annotated, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
-import traceback
 from datetime import datetime
+import logging
 
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, GenerateOptionsSchema, CreateStorySchema, QuestionsResponseSchema, AnswerSchema, GeneratedStoryResponseSchema, UserStoryFullResponseSchema, UserStoryItem, EditGeneratedArticleSchema,CreateAIStoryResponse, CreateManualStoryResponse
@@ -14,6 +14,7 @@ from src.media.service import check_article_authorization
 from src.stories.dependencies import user_story_mode_checker
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 Session = Annotated[AsyncSession, Depends(get_session)]
 UserStoryDep = Annotated[UserStories, Depends(get_user_story_or_404)]
 GeneratedArticleDep = Annotated[GeneratedUserStories, Depends(check_article_authorization)]
@@ -49,13 +50,12 @@ async def get_news_feed(request: LocationDataSchema, session: Annotated[AsyncSes
             }
         
     except ValueError as ve:
-        traceback.print_exc()
+        logger.warning("Invalid request for news feed", extra={"event": "news_feed.validation"})
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        print(f"Error in get_news_feed: {str(e)}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Unexpected error while fetching news feed", extra={"event": "news_feed.failure"})
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail="An error occurred while fetching news articles"
         )
         
@@ -64,7 +64,7 @@ async def get_news_feed(request: LocationDataSchema, session: Annotated[AsyncSes
 @router.post('/generate/{id}', include_in_schema=False)
 async def generate_article(id: str, options: GenerateOptionsSchema, session: Annotated[AsyncSession, Depends(get_session)]):
     try:
-        print(f"Generate options: {options}")
+        logger.debug("Generate article options", extra={"event": "story.generate.options", "options": options})
         story = await get_story_by_id(session, id)
         if not story:
             return HTTPException(status_code=404, detail="story not found")
@@ -75,11 +75,10 @@ async def generate_article(id: str, options: GenerateOptionsSchema, session: Ann
         # print(f"Generated story: {generated_story}\nType of generated story: {type(generated_story)}")
         return generated_story
 
-    except Exception as e:
-        print(e)
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error during story generation", extra={"event": "story.generate.failure", "user_story_id": id})
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail="An error occurred while generating the story"
         )
         

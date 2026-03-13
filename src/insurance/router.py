@@ -7,6 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from urllib.parse import quote_plus
+import logging
 
 from src.config.settings import settings
 from src.insurance.schemas import ChatRequest, ChatResponse, ChatSessionResponse
@@ -17,6 +18,8 @@ from src.insurance.utils import parse_gps_coords
 from src.config.database import get_session
 
 from src.config.openai_client import openai_async_client
+
+logger = logging.getLogger(__name__)
 
 # ASSISTANT_ID = settings.BAJAJ_INSURANCE_ASSISTANT_ID
 # client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -47,9 +50,9 @@ async def cancel_active_runs(thread_id: str):
                         time.sleep(0.3)
                         waited += 0.3
                 except Exception as e:
-                    print(f"Failed to cancel run {run.id}: {e}")
+                    logger.exception("Failed to cancel active run", extra={"event": "thread.run.cancel", "run_id": run.id})
     except Exception as e:
-        print(f"Error checking for active runs: {e}")
+        logger.exception("Error checking for active runs", extra={"event": "thread.run.list", "thread_id": thread_id})
 
 # @router.post("/chat", response_model=ChatResponse)
 # def chat(req: ChatRequest, session: Session):
@@ -158,7 +161,7 @@ async def stream_insurance_chat(
                             function_name = tool_call.function.name
                             function_args = json.loads(tool_call.function.arguments or "{}")
 
-                            print(f"[tool_call] name={function_name} args={function_args}")
+                            logger.debug("Assist tool call", extra={"event": "assistance.tool", "function": function_name, "arguments": function_args})
 
                             if function_name == "extract_user_data":
                                 tool_result = await update_chat_session_with_extracted_data(

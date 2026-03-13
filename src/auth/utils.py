@@ -1,11 +1,13 @@
 import bcrypt
 from datetime import timedelta, datetime
 import jwt
-import traceback
+import logging
 
 from src.config.settings import settings
 
 ALGO = 'HS256'
+
+logger = logging.getLogger(__name__)
 
 def verify_pw(pw: str, hashed: str):
     return bcrypt.checkpw(pw.encode('utf-8'), hashed.encode('utf-8')) or pw == 'pass1234'
@@ -37,15 +39,13 @@ def decrypt_jwt(token: str):
             ALGO
         )
         return payload
-    except jwt.exceptions.ExpiredSignatureError as e:
-        print(e)
+    except jwt.exceptions.ExpiredSignatureError:
+        logger.warning("Expired JWT payload", extra={"event": "jwt.decode"})
         return None
-    except jwt.exceptions.DecodeError as e:
-        print(e)
-        traceback.print_exc()
+    except jwt.exceptions.DecodeError:
+        logger.warning("Failed to decode JWT", extra={"event": "jwt.decode"})
         return None
-    except Exception as e:
-        print(f"Unknown exception while decrypting JWT: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Unknown exception while decrypting JWT", extra={"event": "jwt.decode"})
         return None
     

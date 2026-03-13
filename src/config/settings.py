@@ -32,5 +32,9 @@ class Settings(BaseSettings):
     WATI_API_ACCESS_TOKEN: str
     WATI_TENANT_ID: str
 
+    LOG_LEVEL: str = 'INFO'
+    LOG_FORMAT: str = 'json'
+    LOG_INCLUDE_UVICORN_ACCESS: bool = True
+
 settings = Settings()
 

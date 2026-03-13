@@ -2,6 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socket
 
+from src.config.logging import configure_logging
+from src.middleware.request_logging import RequestLoggingMiddleware
+
+configure_logging()
+
 from src.stories.router import router as stories_router
 from src.editor.router import router as editor_router
 from src.creators.router import router as authors_router
@@ -31,6 +36,8 @@ app = FastAPI(
         The backend is built with FastAPI and uses async SQLAlchemy sessions for database interactions.
         """
 )
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

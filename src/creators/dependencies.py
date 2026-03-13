@@ -1,5 +1,8 @@
 from fastapi import UploadFile, File, HTTPException, status
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ALLOWED_IMAGE_TYPES = [
@@ -20,7 +23,7 @@ async def validate_profile_image(
     if profile_image is None:
         return None
     
-    print(len(profile_image), "no of files")
+    logger.debug("Profile image count", extra={"event": "profile_image.validate", "count": len(profile_image)})
     if len(profile_image) > 1:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,

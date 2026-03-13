@@ -1,10 +1,12 @@
 from fastapi import UploadFile
 import time
-import traceback
 import mimetypes
+import logging
 from botocore.exceptions import ClientError
 
 from src.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_current_unix_timestamp():
@@ -47,13 +49,12 @@ async def upload_file(
             ContentType=file.content_type or 'application/octet-stream',
             # ACL='public-read'
         )
-        print(response)
+        logger.debug("Uploaded file to S3", extra={"event": "s3.upload", "bucket": settings.PROFILE_IMAGE_S3_BUCKET, "key": key})
 
         await file.seek(0)
         return key
-    except Exception as e:
-        print(str(e))
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Failed to upload file to S3", extra={"event": "s3.upload", "username": username})
         return None
     
 async def generate_presigned_urls(
@@ -82,7 +83,7 @@ async def generate_presigned_urls(
                 "key": key
             })
         except ClientError:
-            print(f"Error while generating presigned url for file: {filename}")
+            logger.exception("Failed to generate S3 presigned URL", extra={"event": "s3.presigned", "filename": filename})
             urls.append({
                 "upload_url": None,
                 "key": key

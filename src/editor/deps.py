@@ -3,13 +3,15 @@ from fastapi import HTTPException, Path, Depends, status
 from src.models import UserStoryPublishStatus
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
-import traceback
+import logging
 from uuid import UUID
 
 from src.config.database import get_session
 from src.editor.service import get_article_by_id_db
 from src.models import Users, UserRoles, GeneratedUserStories
 from src.auth.dependencies import role_checker
+
+logger = logging.getLogger(__name__)
 
 
 publish_statuses = [val for val in UserStoryPublishStatus.__members__.values()]
@@ -35,8 +37,8 @@ async def get_article_or_404(article_id: Annotated[UUID, Path(...)], session: An
         if not article:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no article found for id {article_id}")
         return article
-    except Exception as e:
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error loading article by id", extra={"event": "article.get", "article_id": article_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error fetching article for id {article_id}")
 
 

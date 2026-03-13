@@ -6,6 +6,7 @@ from fastapi import HTTPException, status, UploadFile
 import secrets
 from typing import Any
 from uuid import UUID
+import logging
 
 from src.creators.schemas import (
     CreateAuthorSchema,
@@ -18,6 +19,8 @@ from src.models import Authors, Users, UserRoles, Cities
 from src.creators.utils import hash_password
 from src.auth.utils import verify_pw
 from src.aws.service import upload_file
+
+logger = logging.getLogger(__name__)
 
 async def _check_username_exists(session: AsyncSession, username: str) -> bool:
     existing_user = await session.scalar(
@@ -124,7 +127,7 @@ async def create_author_db(
         
     except IntegrityError as ie:
         await session.rollback()
-        print(ie, ie.detail)
+        logger.exception("Creator already exists", extra={"event": "creator.create", "email": email})
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail='author already exists'
@@ -154,7 +157,7 @@ async def update_creator_password(session: AsyncSession, curr_creator: Users, ol
     except Exception as e:
         await session.rollback()
         msg = str(e)
-        print(f"Unknown error while updating password: {msg}")
+        logger.exception("Failed to update creator password", extra={"event": "creator.password_update", "creator_id": curr_creator.id})
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=msg

@@ -12,9 +12,11 @@ from sqlalchemy import select, update, delete, or_, and_, func, literal, case, t
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased, selectinload, contains_eager
 from fastapi import HTTPException, status
-import traceback
+import logging
 from uuid import UUID
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 Creators = aliased(Users)
@@ -133,8 +135,7 @@ async def get_articles_by_publish_status(session: AsyncSession, editor_status: s
         return articles
     except DatabaseError as e:
         msg = f'Error while {editor_status} fetching articles'
-        print(msg)
-        traceback.print_exc()
+        logger.exception("Editor feed query failed", extra={"event": "articles.fetch", "editor_status": editor_status})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={
             "msg": msg,
             "error": str(e)
@@ -197,7 +198,7 @@ async def update_editor_password(
     except Exception as e:
         await session.rollback()
         msg = str(e)
-        print(f"Unknown error while updating password: {msg}")
+        logger.exception("Failed to update editor password", extra={"event": "editor.password_update", "editor_id": curr_editor.id})
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=msg
@@ -462,7 +463,7 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
             .limit(1)
     )
     creator = result.first()
-    print(f"Creator fetched at get_creator_by_id: {creator}")
+    logger.debug("Creator fetched", extra={"event": "creator.fetch", "creator_id": creator_id, "payload": creator})
     if not creator:
         return None
     
@@ -475,9 +476,7 @@ async def get_creator_by_id(session: AsyncSession, creator_id: UUID):
             )
     )
     published_count = result.scalar_one_or_none() or 0
-    
-    # print(f"Creator fetched at get_creator_by_id: {creator.__dict__}")
-    print(f"Published count: {published_count}")
+    logger.debug("Creator published count", extra={"event": "creator.metrics", "creator_id": creator_id, "published_count": published_count})
     
     return CreatorItem(
         id=creator.id,
@@ -516,7 +515,7 @@ async def add_creator_db(session: AsyncSession, curr_editor_id: UUID, payload: C
         await session.commit()
         
         creator = result.first()[0]
-        print(creator)
+        logger.info("Creator added", extra={"event": "creator.create", "creator_id": creator.id})
         
         return CreatorItem(
             id=creator.id,
@@ -530,7 +529,7 @@ async def add_creator_db(session: AsyncSession, curr_editor_id: UUID, payload: C
             # published_count=0,
         )
     except IntegrityError as e:
-        print(f"Error while adding new creator ({payload.email}): {e}")
+        logger.exception("Failed to add creator", extra={"event": "creator.create", "email": payload.email})
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="A creator with this email already exists"
@@ -581,7 +580,7 @@ async def validate_categories(
     invalid = category_ids - validated_category_ids_set
     
     if invalid:
-        print(f"Found invalid categories: {', '.join(invalid)}")
+        logger.warning("Invalid category IDs supplied", extra={"event": "categories.validate", "invalid_ids": list(invalid)})
     return list(validated_category_ids_set)
     
     

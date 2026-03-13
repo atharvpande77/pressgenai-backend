@@ -10,10 +10,13 @@ from openai import AsyncOpenAI, OpenAIError
 import json
 import asyncio
 import unicodedata
+import logging
 
 from src.config.settings import settings
 from src.schemas import LocationDataSchema, GenerateOptionsSchema, ReqSchema
 from src.models import UserStories
+
+logger = logging.getLogger(__name__)
 
 SCOPE_CONFIG = {
             'CITY': {'refresh_interval_mins': 60, 'max_days_back': 5},
@@ -159,8 +162,8 @@ def needs_fetching(location_db):
         now = datetime.now()
         time_since_last_fetch = now - location_db.last_fetched_timestamp
         return time_since_last_fetch.total_seconds()/60 > location_db.refresh_interval_mins
-    except Exception as e:
-        print(e)
+    except Exception:
+        logger.exception("Failed to determine location freshness", extra={"event": "location.refresh_check"})
         return None
 
 # def is_news_story_fresh(story, active_level: str, last_fetched_timestamp: Optional[datetime] = None) -> bool:
@@ -279,9 +282,9 @@ async def fetch_news_articles(request: LocationDataSchema, since_timestamp: date
                 break  # no more results
 
             for story in results:
-                _ = is_news_story_fresh(story, cutoff_datetime)
-                print(_)
-                is_fresh, published_timestamp = _
+                freshness = is_news_story_fresh(story, cutoff_datetime)
+                logger.debug("Story freshness checked", extra={"event": "story.freshness", "story": story.get("link"), "freshness": freshness})
+                is_fresh, published_timestamp = freshness
                 if is_fresh:
                     story['date'] = published_timestamp
                     link = story.get("link")
@@ -343,8 +346,8 @@ async def rewrite_story(options: GenerateOptionsSchema, story) -> dict:
         content = response.choices[0].message.content
         return json.loads(content)
 
-    except Exception as e:
-        print("Rewrite error:", e)
+    except Exception:
+        logger.exception("OpenAI rewrite failed", extra={"event": "story.rewrite"})
         return None
 
 
@@ -376,8 +379,8 @@ async def get_prompt_response(request: ReqSchema) -> str:
         content = response.choices[0].message.content
         return content
 
-    except Exception as e:
-        print("Rewrite error:", e)
+    except Exception:
+        logger.exception("Prompt response failed", extra={"event": "prompt.generate"})
         return None
     
 import hashlib
@@ -559,19 +562,14 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
             # article['category'] = article.get('category', '').strip().lower().replace(' ', '-')
             article['category'] = [category.lower().replace(' ', '-') for category in article['category']]
         except json.JSONDecodeError:
-            print("AI returned invalid JSON. Wrapping in fallback format.")
-            # article = {
-            #     "title": "",
-            #     "snippet": "<p>Summary not available</p>",
-            #     "full_text": f"<p>{raw_content}</p>"
-            # }
+            logger.warning("AI returned invalid JSON while generating article", extra={"event": "story.generate", "raw": raw_content[:512]})
             return None
         if existing_title:
             article['title'] = existing_title
         return article
 
-    except Exception as e:
-        print(f"Error generating user story: {e}")
+    except Exception:
+        logger.exception("Error generating user story", extra={"event": "story.generate"})
         # return {
         #     "title": "",
         #     "snippet": "<p>Error occurred while generating the story.</p>",
@@ -663,8 +661,8 @@ async def generate_manual_story_metadata(full_text: str, title: str | None = Non
 
         raw_content = response.choices[0].message.content.strip()
         return json.loads(raw_content)
-    except Exception as e:
-        print(f"Error generating user story: {e}")
+    except Exception:
+        logger.exception("Error generating manual story metadata", extra={"event": "story.metadata"})
 
 def get_word_length_range(length_option: str):
     LENGTH_RANGES = {

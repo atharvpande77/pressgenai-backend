@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta, timezone
 import asyncio
 import httpx
-import traceback
+import logging
 from openai import OpenAIError
 from fastapi import Path, HTTPException, Depends, status
 from typing import Annotated
@@ -19,6 +19,8 @@ from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range
 from src.auth.dependencies import role_checker
 from src.aws.utils import get_full_s3_object_url, get_images_with_urls
 from src.utils.query import get_article_images_json_query, get_profile_image_expression
+
+logger = logging.getLogger(__name__)
 
 refresh_interval_map = {"city": 60, "state": 40, "country": 30, "world": 15}
 
@@ -124,9 +126,9 @@ async def store_location_records(session: AsyncSession, locations_to_add: list[d
     try:
         result = await session.execute(query)
         await session.commit()
-    except DatabaseError as e:
+    except DatabaseError:
         await session.rollback()
-        print(f"Error occurred while storing location records: {e}")
+        logger.exception("Error storing location records", extra={"event": "location.store"})
 
     return result.scalars().all() or locations_to_add
 
@@ -213,9 +215,8 @@ async def get_location_status(session: AsyncSession, request: LocationDataSchema
             query = select(*columns).filter(*where_condition.get(scope))
         result = await session.execute(query)
         return result.first()
-    except Exception as e:
-        print(e)
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Unable to fetch location status", extra={"event": "location.status"})
         return None
 
 def prepare_db_object(location: LocationDataSchema):
@@ -304,9 +305,9 @@ async def add_location_record(session: AsyncSession, request: LocationDataSchema
         await session.commit()
         await session.refresh(new_location)
         return new_location
-    except Exception as e:
+    except Exception:
         await session.rollback()
-        print(f"Error adding location record: {str(e)}")
+        logger.exception("Error adding location record", extra={"event": "location.create"})
         return None
     
 async def update_location_timestamp(session: AsyncSession, location_id: str):
@@ -317,9 +318,8 @@ async def update_location_timestamp(session: AsyncSession, location_id: str):
         if not result.rowcount:
             return False
         return True
-    except Exception as e:
-        print(f"Error updating location timestamp for {location_id}: {str(e)}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error updating location timestamp", extra={"event": "location.update", "location_id": location_id})
         return True
 
 async def add_stories_to_db(session: AsyncSession, news_records: list[dict], location_id: str):
@@ -381,9 +381,9 @@ async def add_stories_to_db(session: AsyncSession, news_records: list[dict], loc
             for r in sorted_rows
         ]
 
-    except Exception as e:
+    except Exception:
         await session.rollback()
-        print(f"Error in batch insert: {str(e)}")
+        logger.exception("Error saving fetched stories", extra={"event": "stories.insert"})
         return None
 
 
@@ -415,9 +415,8 @@ async def fetch_stories_from_db(session: AsyncSession, location_id: str):
             "thumbnail": story.thumbnail
         } for story in stories]
 
-    except Exception as e:
-        print(e)
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error reading stories from DB", extra={"event": "stories.query", "location_id": location_id})
         return []
 
         
@@ -425,8 +424,8 @@ async def get_story_by_id(session: AsyncSession, story_id: str):
     try:
         result = await session.execute(select(StoriesRaw.id, StoriesRaw.title, StoriesRaw.snippet, StoriesRaw.link).filter(StoriesRaw.id == story_id))
         return result.first()
-    except Exception as e:
-        print(e)
+    except Exception:
+        logger.exception("Error fetching story by id", extra={"event": "story.fetch", "story_id": story_id})
         return None
     
 
@@ -534,7 +533,7 @@ async def create_user_story_db(session: AsyncSession, request: CreateStorySchema
         )
     except IntegrityError as e:
         await session.rollback()
-        traceback.print_exc()
+        logger.exception("Story creation hit a duplicate constraint", extra={"event": "story.create"})
 
         err_msg = str(e.orig).lower()
         
@@ -548,8 +547,8 @@ async def get_user_story_by_id(session: AsyncSession, user_story_id: str):
         # print(user_story_id)
         result = await session.execute(select(UserStories).filter(UserStories.id == user_story_id))
         return result.scalars().first()
-    except Exception as e:
-        print(e)
+    except Exception:
+        logger.exception("Error fetching user story by id", extra={"event": "user_story.fetch", "user_story_id": user_story_id})
         return None
     
 async def get_user_story_or_404(session: Annotated[AsyncSession, Depends(get_session)], curr_creator: Annotated[Users, Depends(role_checker('creator'))], user_story_id: str = Path(...)):
@@ -590,8 +589,8 @@ async def generate_and_store_story_questions(session: AsyncSession, user_story: 
         questions = await generate_ai_questions(user_story)
         if not questions:
             raise HTTPException(status_code=500, detail="Error while parsing questions or no questions returned")
-    except OpenAIError as e:
-        print(str(e))
+    except OpenAIError:
+        logger.exception("OpenAI error generating questions", extra={"event": "questions.generate", "user_story_id": user_story_id})
         raise HTTPException(status_code=502, detail="openai service error")    
     
     try:
@@ -610,10 +609,9 @@ async def store_questions(session: AsyncSession, user_story_id: str, questions: 
         result = await session.execute(stmt)
         await session.commit()
         return result.scalars().all()
-    except Exception as e:
-        print(F"Error storing questions: {str(e)}")
+    except Exception:
         await session.rollback()
-        traceback.print_exc()
+        logger.exception("Error storing story questions", extra={"event": "questions.store", "user_story_id": user_story_id})
         return None
     
 from sqlalchemy import func
@@ -731,13 +729,13 @@ async def get_complete_story_by_id(session: AsyncSession, user_story_id: str, cu
         generated_article_db = await get_article_by_id_or_user_story_id(session, user_story_id=user_story_id)
 
         return UserStoryFullResponseSchema(user_story=user_story_db, qna=qna, generated=generated_article_db)
-    except DatabaseError as dbe:
-        traceback.print_exc()
+    except DatabaseError:
+        logger.exception("Database error while building story detail", extra={"event": "user_story.detail", "user_story_id": user_story_id})
         raise
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Unhandled error building story detail", extra={"event": "user_story.detail", "user_story_id": user_story_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -1059,9 +1057,8 @@ async def get_generated_user_story(
         )
         return generated_story_db
     
-    except Exception as e:
-        print("Error while storing generated article in DB")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error while saving generated article", extra={"event": "story.generated.store", "user_story_id": user_story_id})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error while storing generated article in DB",
@@ -1123,7 +1120,7 @@ async def get_user_stories_db(session: AsyncSession, curr_creator_id: str, story
         return result.mappings().all()
     except DatabaseError as dbe:
         err_msg = f"Database error while fetching stories with status {story_status}: {str(dbe)}"
-        print(err_msg)
+        logger.exception("Database error while listing stories", extra={"event": "stories.list", "story_status": story_status})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=err_msg)
 
 
@@ -1174,5 +1171,5 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
         return edited_article
     
     except DatabaseError as e:
-        traceback.print_exc()
+        logger.exception("Error while updating generated article", extra={"event": "article.update", "generated_article_id": generated_article_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error while updating article {generated_article_id} {str(e)}")
