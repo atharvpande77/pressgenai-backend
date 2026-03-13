@@ -104,9 +104,10 @@ async def get_article_by_slug_or_id(
         select(GeneratedUserStories)
         .join(UserStories, GeneratedUserStories.user_story_id == UserStories.id)
         .options(
-            selectinload(GeneratedUserStories.categories),
-            selectinload(GeneratedUserStories.author).selectinload(Authors.user),
-            selectinload(GeneratedUserStories.editor),
+        selectinload(GeneratedUserStories.categories),
+        selectinload(GeneratedUserStories.author).selectinload(Authors.user),
+        selectinload(GeneratedUserStories.editor),
+        selectinload(GeneratedUserStories.city),
         )
         .where(
             or_(*filters),

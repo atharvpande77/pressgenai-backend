@@ -76,6 +76,8 @@ class ArticleDetailResponse(GeneratedStoryResponseSchema):
     model_config = ConfigDict(from_attributes=True)
 
     published_at: datetime | None = None
+    city_id: UUID | None = None
+    city: str | None = Field(default=None, validation_alias=AliasPath("city", "name"))
     creator: ArticlePerson = Field(validation_alias=AliasPath("author", "user"))
     editor: ArticlePerson | dict = Field(default_factory=dict)
 

@@ -1,42 +1,45 @@
 # Repository Guidelines
 
 ## Purpose & Scope
-- Backend-only work lives in `src/`; `src/app.py` wires FastAPI, mounts all routers, and exposes `/` plus `/api/*` under `root_path` `/pressgenai`.
-- Migrations live in `alembic/` with the history under `alembic/versions/`; `/frontend`, `/news-agg-html`, `.venv/`, `.tmp/`, and any directories listed in `.gitignore` are intentionally out of scope for this guide.
+- Backend work lives entirely under `src/`. `src/app.py` wires FastAPI, mounts the routers, and exposes `/` plus `/api/*` under `root_path /pressgenai`.
+- Migrations are in `alembic/` (history under `alembic/versions/`).
+- Treat `/frontend`, `/news-agg-html`, `.venv/`, `.tmp/`, and any directory listed in `.gitignore` as out of scope for this guide.
 
 ## Architecture & Layout
-- Each domain under `src/` (e.g., `admin`, `auth`, `stories`, `editor`, `creators`, `media`, `news`, `insurance`, `common`) follows the router/service/schemas split: `router.py` defines endpoints, `service.py` holds business logic, and `schemas.py` defines typed request/response models.
-- Shared pieces live in `src/config/` (settings, DB, OpenAI client) plus `src/models.py`/`src/schemas.py` for cross-domain models/DTOs.
-- `src/config/settings.py` is a `pydantic-settings` config that loads `.env`; `src/config/database.py` instantiates the async SQLAlchemy engine/session based on `ENV`, `DEV_DB_CNX_STR`, or `POSTGRES_CNX_STR_LOCAL`.
-- The app applies permissive CORS for now and mounts routers for stories, editor, creator, auth, admin, news, media, common, and insurance. Keep business rules in the service layer and keep routers thin.
+- Each domain under `src/` (e.g., `admin`, `auth`, `stories`, `editor`, `creators`, `media`, `news`, `insurance`, `common`) follows a router → service → schemas split.
+- Shared pieces live in `src/config/` (settings, database, OpenAI client) plus `src/models.py`/`src/schemas.py` for cross-domain models.
+- Settings use `pydantic-settings` to load `.env`; the database helper exposes `get_session()` and a `Session` dependency.
+- Business rules stay in the service layer; routers should remain lightweight.
+- Routes for stories, editor, creator, auth, admin, news, media, and common are exposed in the schema (`insurance` is not).
 
 ## Environment & Setup
-- Python 3.12.8 is the target runtime. Setup a venv, activate it, and install dependencies with `pip install -r requirements.txt` before coding.
-- `.env` holds secrets and is ignored by git; do not commit credentials. Required variables include (but are not limited to) `POSTGRES_CNX_STR_LOCAL`, `DEV_DB_CNX_STR`, `ENV`, `SERP_API_KEY`, `EXHAUSTED_SERP_API_KEY1`, `OPENAI_API_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `PROFILE_IMAGE_S3_BUCKET`, assistant IDs (`RETIREMENT_*`, `TERM_*`, `CHILD_EDUCATION_*`, `TAX_PLANNING_*`), and WATI tokens. Keep the list in sync with `src/config/settings.py`.
+- Target runtime: Python 3.12.8. Create and activate a virtual environment before installing dependencies with `pip install -r requirements.txt`.
+- `.env` holds secrets and is ignored by git; never commit credentials. Keep it synced with `src/config/settings.py`.
+- Required variables include `POSTGRES_CNX_STR_LOCAL`, `DEV_DB_CNX_STR`, `ENV`, OpenAI/Serp/WATI keys, AWS credentials, bucket names, assistant IDs, JWT secrets, and any other value referenced in `src/config/settings.py`.
 
 ## Common Commands
-- `python -m venv .venv` && activate + `pip install -r requirements.txt`: bootstrap dependencies.
-- `uvicorn src.app:app --reload --host 0.0.0.0 --port 8000`: run the API in dev mode.
-- `alembic upgrade head`: bring the database schema up to date.
-- `alembic revision --autogenerate -m "describe change"`: add migrations after model changes.
+- `python -m venv .venv && . .venv/Scripts/activate` (Windows) or `source .venv/bin/activate` (Unix) + `pip install -r requirements.txt`.
+- `uvicorn src.app:app --reload --host 0.0.0.0 --port 8000` — run the API locally.
+- `alembic upgrade head` after schema changes.
+- `alembic revision --autogenerate -m "description"` to capture migrations.
 
 ## Development Practices
-- Prefer URLs/logic in `service.py`, keep routers only for wiring dependencies/schemas. Use dependency injection via `src/config/database.Session` and `get_session()` helpers.
-- When modeling data, update `src/models.py` and add an Alembic migration for any schema change. Referencing enums in models (e.g., `UserStoryStatus`, `UserStoryPublishStatus`, `NewsCategory`) should match server-side logic and should be reused in other modules.
-- Add or adjust tests near the feature (`src/<module>/test_*.py`) if the behavior warrants it; automated coverage is limited, so every new feature should come with at least minimal verification.
-- Before committing, run the impacted endpoint manually (local `uvicorn` + curl/postman) and ensure `alembic upgrade head` runs cleanly against your dev DB.
-- Commit messages should be descriptive and imperative (e.g., `news: handle duplicate feed items`), and PRs should summarize behavior changes, link relevant tasks, document migration IDs/rollback impact, and include API examples when endpoints change.
+- Keep routers focused on wiring dependencies, schemas, and responses. Push business logic (queries, validations, updates) into `service.py`.
+- Use the `src/config/database.Session` dependency and `AsyncSession` helpers for DB work. Always `commit()` or `rollback()` explicitly as needed.
+- When data models change, update `src/models.py`, add a migration, and adjust any related tests.
+- Prefer `rg` for searching and `apply_patch` for single-file edits.
+- Before committing, exercise affected endpoints locally with `uvicorn` + curl/Postman and run `alembic upgrade head` to ensure migrations apply cleanly.
 
 ## Security & Configuration Notes
-- Keep secrets in `.env` only; never hardcode tokens/keys in the repo. `.env` is listed in `.gitignore`, so copy the file from secure sources when needed.
-- Review CORS settings, database URLs, and AWS/OpenAI configuration in `src/config/` before promoting any change.
-- Changes touching IAM credentials, OpenAI assistants, or payment/chatbot flows should include notes about where those values live and how to rotate them safely.
+- Secrets belong in `.env` only. Do not hardcode API keys, tokens, or credentials in the repo.
+- CORS is currently permissive; be mindful when adding new routes or integrating third-party origins.
+- Any change touching IAM credentials, OpenAI assistants, or payment/chatbot flows must include notes on where those values live and how to rotate them.
 
 ## Gitignore & Off-Limits Paths
-- Follow `.gitignore` strictly: ignore `.venv/`, `.vercel/`, `.tmp/`, `/frontend/`, `/news-agg-html/`, `/src/insurance/scripts/`, `.vscode/`, `__pycache__/`, and compiled artifacts (`*.pyc`, etc.).
-- Do not commit generated files or credentials; prefer checking `git status` often to ensure excluded directories stay out of commits.
+- Follow `.gitignore`: keep `.venv/`, `.vercel/`, `.tmp/`, `/frontend/`, `/news-agg-html/`, `/src/insurance/scripts/`, `.vscode/`, `__pycache__/`, and compiled artifacts (`*.pyc`) out of commits.
+- Don’t commit generated files or credentials. Check `git status` often and stage only relevant files.
 
 ## Helpful Reminders
-- FastAPI + SQLAlchemy/Asyncpg is the stack; keep async/await lean.
-- When in doubt, look at `src/app.py` and the routers to understand how middleware, tagging, and prefixing behave.
-- If you add new config, update both `src/config/settings.py` and the README/AGENTS so future contributors know what to provide.
+- The stack is FastAPI + async SQLAlchemy/Asyncpg with Redis/Postgres. Keep async usage lean and avoid blocking operations.
+- Consult `src/app.py` to understand middleware, tags, and router prefixes.
+- When adding config keys, update `src/config/settings.py` and the documentation (README/AGENTS.md) so future contributors know what to provide.

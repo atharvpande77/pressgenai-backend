@@ -21,9 +21,7 @@ from src.creators.service import (
     create_author_db,
     update_creator_password,
     update_creator_profile_db,
-    store_creator_onboarding,
-    store_creator_links,
-    update_onboarding_status,
+    persist_creator_onboarding,
     fetch_creator_onboarding_status,
 )
 from src.models import Users, UserRoles
@@ -117,22 +115,15 @@ async def get_existing_creator_onboarding(
     '/onboarding',
     status_code=status.HTTP_200_OK,
     response_model=CreatorOnboardingStatus,
-    summary="Submit or update creator onboarding data",
-    description="""Submit onboarding information and let the server upsert any provided fields.
-    
-    Stores:
-    - Personal information (date of birth, education level, work status)
-    - City preference (uses the provided city ID)
-    - Optional profile links
-    
-    Marks onboarding_completed true only when the four required values either existed already or are present after this call.
-    Returns the current onboarding snapshot (same shape as GET /onboarding).""",
+    summary="Upsert creator onboarding details",
+    description="""Stores or updates onboarding fields (DOB, education, work status, city choice, links) for the authenticated creator.
+
+    The endpoint upserts provided values, deletes the previous links if any, and returns the full onboarding snapshot (same response as GET /onboarding).""",
     responses={
         200: {"description": "Returns the creator's onboarding snapshot (DOB, education, work status, city, links)"},
         400: {"description": "Invalid payload or city_id does not exist"},
         401: {"description": "Insufficient permissions - Creator role required"},
         404: {"description": "Creator profile not found"},
-        409: {"description": "Onboarding already marked complete"},
         500: {"description": "Internal server error while persisting onboarding data"}
     }
 )
@@ -148,47 +139,19 @@ async def onboard_creator(
             detail="Creator profile not found"
         )
 
-    if curr_creator_profile.onboarding_completed:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail="Onboarding already completed for this creator"
-        )
-
-    updated_author = await store_creator_onboarding(
+    onboarding_status = await persist_creator_onboarding(
         session=session,
         creator_id=curr_creator.id,
-        date_of_birth=body.date_of_birth,
-        city_id=body.city_id,
-        highest_education=body.highest_education,
-        highest_educatation_specify=body.education_other_specify,
-        work_status=body.work_status,
-        work_status_specify=body.work_status_other_specify,
+        payload=body,
     )
 
-    if body.links:
-        await store_creator_links(session, curr_creator.id, body.links)
-
-    completion_ready = all(
-        (
-            updated_author.date_of_birth,
-            updated_author.highest_education,
-            updated_author.work_status,
-            updated_author.city_id,
-        )
-    )
-
-    if completion_ready:
-        await update_onboarding_status(session, curr_creator.id, True)
-
-    await session.commit()
-
-    onboarding_status = await fetch_creator_onboarding_status(session, curr_creator.id)
     if not onboarding_status:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to load onboarding status"
         )
 
+    await session.commit()
     return onboarding_status
 
 

@@ -2,12 +2,13 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 from uuid import UUID
 
 from src.creators.schemas import AuthorResponseSchema
+from src.schemas import ProfileImageMixin
 
 class AuthSchema(BaseModel):
     email: EmailStr
     password: str
 
-class UserResponseSchema(BaseModel):
+class UserResponseSchema(BaseModel, ProfileImageMixin):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

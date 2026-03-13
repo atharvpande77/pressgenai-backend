@@ -13,6 +13,7 @@ from src.creators.schemas import (
     AuthorResponseSchema,
     UpdateProfileSchema,
     CreatorLink,
+    CreatorOnboarding,
     CreatorOnboardingStatus,
 )
 from src.models import Authors, Users, UserRoles, Cities
@@ -287,24 +288,75 @@ async def store_creator_onboarding(
 
     return author
 
+
+async def persist_creator_onboarding(
+    session: AsyncSession,
+    creator_id: UUID,
+    payload: CreatorOnboarding,
+) -> CreatorOnboardingStatus | None:
+    author = await store_creator_onboarding(
+        session=session,
+        creator_id=creator_id,
+        date_of_birth=payload.date_of_birth,
+        city_id=payload.city_id,
+        highest_education=payload.highest_education,
+        highest_educatation_specify=payload.education_other_specify,
+        work_status=payload.work_status,
+        work_status_specify=payload.work_status_other_specify,
+    )
+
+    if payload.links:
+        await store_creator_links(session, creator_id, payload.links)
+
+    completion_ready = all(
+        (
+            author.date_of_birth,
+            author.highest_education,
+            author.work_status,
+            author.city_id,
+        )
+    )
+
+    if completion_ready and not author.onboarding_completed:
+        await update_onboarding_status(session, creator_id, True)
+
+    return await fetch_creator_onboarding_status(session, creator_id)
+
 async def _delete_existing_links_or_cities(session: AsyncSession, table: EditorCities | UserLinks, creator_id: UUID):
-    column = getattr(table, "editor_id", None) or getattr(table, "user_id", None)
-    if column is None:
-        raise RuntimeError("Unable to determine foreign key column for deletion")
+    column = _resolve_foreign_key_column(table)
     await session.execute(
         delete(table).where(column == creator_id)
     )
+
+def _resolve_foreign_key_column(table: type[EditorCities] | type[UserLinks]):
+    for attr in ("editor_id", "user_id"):
+        if hasattr(table, attr):
+            return getattr(table, attr)
+    raise RuntimeError("Unable to determine foreign key column for deletion")
 
 async def store_creator_links(
     session: AsyncSession,
     creator_id: UUID,
     links: list[CreatorLink]
 ):
+    if not links:
+        return
+
     await _delete_existing_links_or_cities(session, UserLinks, creator_id)
-    
+
+    payloads = [
+        {
+            "user_id": creator_id,
+            "link_type": link.link_type.value,
+            "platform": link.platform,
+            "url": str(link.url),
+            "description": link.description,
+        }
+        for link in links
+    ]
+
     await session.execute(
-        insert(UserLinks)
-            .values([{"user_id": creator_id, "url": str(link.url), "link_type": link.link_type, "platform": link.platform, "description": link.description} for link in links])
+        insert(UserLinks).values(payloads)
     )
 
 
