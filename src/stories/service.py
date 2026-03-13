@@ -1142,9 +1142,9 @@ async def edit_generated_article_db(session: AsyncSession, curr_creator_id: str,
             
         user_story = article_db.user_story
         publish_status = user_story.publish_status
-        status = user_story.status
+        story_status = user_story.status
         
-        if publish_status == UserStoryPublishStatus.PUBLISHED or status == UserStoryStatus.SUBMITTED:
+        if publish_status == UserStoryPublishStatus.PUBLISHED or story_status == UserStoryStatus.SUBMITTED:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 detail="cannot edit a published or submitted article"
