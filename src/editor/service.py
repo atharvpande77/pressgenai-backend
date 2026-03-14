@@ -145,7 +145,18 @@ async def get_article_by_id_db(
     session: AsyncSession,
     article_id: UUID
 ):
-    article = await session.get(GeneratedUserStories, article_id)
+    result = await session.execute(
+        select(GeneratedUserStories)
+        .options(
+            selectinload(GeneratedUserStories.categories),
+            selectinload(GeneratedUserStories.city),
+            selectinload(GeneratedUserStories.author).selectinload(Authors.user),
+            selectinload(GeneratedUserStories.editor),
+            selectinload(GeneratedUserStories.user_story),
+        )
+        .where(GeneratedUserStories.id == article_id)
+    )
+    article = result.scalars().first()
     if not article:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no article found for id {article_id}')
     return article
