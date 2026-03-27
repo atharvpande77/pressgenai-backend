@@ -4,7 +4,7 @@ from typing import Annotated
 from src.media.schemas import ArticleImagesRequest
 from src.models import GeneratedUserStories
 from src.aws.client import get_s3_client
-from src.media.service import check_article_authorization
+from src.media.service import check_article_authorization, get_article_image_prefix
 from src.aws.service import generate_presigned_urls
 
 router = APIRouter()
@@ -18,8 +18,7 @@ async def get_images_upload_urls(
 ):
     filenames = list(set(request.filenames))
     
-    creator_username = article_db.author.user.username
-    prefix = f"article_images/{creator_username}_{article_db.id}"
+    prefix = get_article_image_prefix(article_db)
 
     upload_urls: list[dict] = await generate_presigned_urls(
         s3,

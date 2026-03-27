@@ -1,9 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import Annotated
 from fastapi import Path, HTTPException, status, Depends
 
-from src.models import GeneratedUserStories, UserRoles, Users, UserStoryStatus
+from src.models import GeneratedUserStories, UserRoles, Users, UserStoryStatus, Authors
 from src.auth.dependencies import get_current_user
 from src.config.database import get_session
 
@@ -20,14 +22,27 @@ from src.config.database import get_session
 async def get_generated_article_dep(
     session: Annotated[AsyncSession, Depends(get_session)],
     generated_article_id: Annotated[UUID, Path(...)]
-):
-    article = await session.get(GeneratedUserStories, generated_article_id)
+) -> GeneratedUserStories:
+    result = await session.execute(
+        select(GeneratedUserStories)
+        .options(
+            selectinload(GeneratedUserStories.author).selectinload(Authors.user),
+            selectinload(GeneratedUserStories.user_story),
+        )
+        .where(GeneratedUserStories.id == generated_article_id)
+    )
+    article = result.scalars().first()
     if not article:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
             detail=f"no article found for id {generated_article_id}"
         )
     return article
+
+
+def get_article_image_prefix(article: GeneratedUserStories) -> str:
+    creator_username = article.author.user.username
+    return f"article_images/{creator_username}_{article.id}"
 
 
 async def check_article_authorization(

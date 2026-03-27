@@ -328,10 +328,6 @@ async def reject_article(
     curr_editor: EditorRoleDep,
     article_db: GetArticleDep
 ):
-    params = {}
-    # if payload.reason:
-    #     params["rejection_reason"] = payload.reason
-    
     user_story = article_db.user_story
     publish_status = user_story.publish_status
     
@@ -347,12 +343,11 @@ async def reject_article(
         article_id=article_db.id,
         new_publish_status=UserStoryPublishStatus.REJECTED,
         curr_editor_id=curr_editor.id,
-        params=params or None
+        rejection_reason=payload.reason
     )
     
     await session.commit()
     
-    # return await reject_article_db(session, article_db, payload.reason, curr_editor.id)
     return {"message": "success"}
 
 

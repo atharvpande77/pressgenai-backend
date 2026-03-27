@@ -299,12 +299,17 @@ async def set_publish_status(
     article_id: UUID,
     new_publish_status: str,
     curr_editor_id: UUID,
-    params: dict | None = None
+    params: dict | None = None,
+    rejection_reason: str | None = None
 ):
+    user_story_values: dict = {"publish_status": new_publish_status}
+    if rejection_reason is not None:
+        user_story_values["rejection_reason"] = rejection_reason
+
     await session.execute(
         update(UserStories)
             .where(UserStories.id == user_story_id)
-            .values(publish_status=new_publish_status)
+            .values(**user_story_values)
     )
     
     published_at = datetime.now()+timedelta(hours=5, minutes=30) if new_publish_status == UserStoryPublishStatus.PUBLISHED else None
