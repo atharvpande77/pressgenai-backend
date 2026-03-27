@@ -329,8 +329,8 @@ async def reject_article(
     article_db: GetArticleDep
 ):
     params = {}
-    if payload.reason:
-        params["rejection_reason"] = payload.reason
+    # if payload.reason:
+    #     params["rejection_reason"] = payload.reason
     
     user_story = article_db.user_story
     publish_status = user_story.publish_status
@@ -338,7 +338,7 @@ async def reject_article(
     if publish_status == UserStoryPublishStatus.REJECTED:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="Cannot reject an article that is already rejected or is pending"
+            detail="Cannot reject an article that is already rejected"
         )
         
     await set_publish_status(
