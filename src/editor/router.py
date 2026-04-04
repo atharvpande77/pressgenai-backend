@@ -348,7 +348,7 @@ async def reject_article(
     
     await session.commit()
     
-    return {"message": "success"}
+    return RejectedEndpointResponse(rejection_reason=payload.reason, publish_status=UserStoryPublishStatus.REJECTED)
 
 
 # Creator management
