@@ -188,11 +188,14 @@ class GeneratedUserStories(Base):
     author = relationship("Authors", back_populates="generated_user_stories", lazy='selectin')
     editor = relationship("Users", foreign_keys=[editor_id], lazy='selectin')
     city = relationship("Cities", lazy='selectin')
+    # Ordered as chosen by the editor/generator; the first one is the article's
+    # primary category (used for its canonical URL /{category}/{slug}).
     categories = relationship(
         "Categories",
         secondary="article_categories",
         back_populates="articles",
         lazy="selectin",
+        order_by="ArticleCategories.position",
     )
     city = relationship("Cities", back_populates="generated_user_stories", lazy='selectin')
 
@@ -310,6 +313,8 @@ class ArticleCategories(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, index=True, server_default=text("uuid_generate_v4()"))
     article_id = Column(UUID(as_uuid=True), ForeignKey('generated_user_stories.id'), nullable=False)
     category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
+    # 0-based order of the category on the article; position 0 is the primary category.
+    position = Column(Integer, nullable=False, server_default=text("0"))
     
     __table_args__ = (
         UniqueConstraint('article_id', 'category_id', name='unique_article_category'),

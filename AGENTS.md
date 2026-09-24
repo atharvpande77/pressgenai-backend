@@ -22,6 +22,7 @@
 - `uvicorn src.app:app --reload --host 0.0.0.0 --port 8000` — run the API locally.
 - `alembic upgrade head` after schema changes.
 - `alembic revision --autogenerate -m "description"` to capture migrations.
+- `python -m pytest tests` — unit tests (install `requirements-dev.txt`).
 
 ## Development Practices
 - Keep routers focused on wiring dependencies, schemas, and responses. Push business logic (queries, validations, updates) into `service.py`.

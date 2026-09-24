@@ -786,15 +786,16 @@ async def get_category_ids(session: AsyncSession, categories: list[str]) -> list
     if not categories:
         return [await _get_general_category_id(session)]
 
-    normalized_categories = {c.lower().strip() for c in categories if c and c.strip()}
+    # Keep the generator's order (first = primary category), de-duplicated.
+    normalized_categories = list(dict.fromkeys(c.lower().strip() for c in categories if c and c.strip()))
 
     result = await session.execute(
         select(Categories)
             .where(Categories.value.in_(normalized_categories))
-            .limit(3)
     )
             
-    category_ids = result.scalars().all()
+    by_value = {category.value: category for category in result.scalars().all()}
+    category_ids = [by_value[value] for value in normalized_categories if value in by_value][:3]
     
     # print(category_ids)
     
@@ -915,7 +916,10 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
         
     await session.execute(
         insert(ArticleCategories)
-            .values([{"article_id": article_id, "category_id": category['id']} for category in validated_categories])
+            .values([
+                {"article_id": article_id, "category_id": category['id'], "position": position}
+                for position, category in enumerate(validated_categories)
+            ])
     )
     
     # Set user story status to generated

@@ -712,16 +712,34 @@ def sluggify(title: str, max_words: int = 6, transliterate: bool = False) -> str
     if transliterate:
         text = unidecode(title)
     else:
-        # Normalize unicode (decompose accented characters)
-        text = unicodedata.normalize('NFKD', title)
+        text = _strip_latin_accents(title)
     
     # Convert to lowercase and get first n words
     words = text.lower().split()[:max_words]
     text = ' '.join(words)
     
-    # Replace common special characters and spaces with hyphens
-    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
+    # Drop punctuation/symbols. Keep letters, digits and combining marks: Devanagari
+    # vowel signs (ा ि ी ु े ो ं …) are combining marks, and `\w` alone would strip
+    # them, turning "सेवा" into "सव".
+    text = ''.join(
+        ch for ch in text
+        if ch in ' -_' or ch.isspace() or unicodedata.category(ch)[0] in ('L', 'N', 'M')
+    )
     text = re.sub(r'[-\s]+', '-', text)
     
     # Trim hyphens
     return text.strip('-')
+
+
+def _strip_latin_accents(text: str) -> str:
+    """Remove accents from Latin letters only (é → e); other scripts are left intact."""
+    out = []
+    previous_is_latin = False
+    for ch in unicodedata.normalize('NFKD', text):
+        if unicodedata.category(ch).startswith('M'):
+            if previous_is_latin:
+                continue
+        else:
+            previous_is_latin = ch.isascii()
+        out.append(ch)
+    return unicodedata.normalize('NFC', ''.join(out))

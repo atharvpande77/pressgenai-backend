@@ -23,7 +23,11 @@ Faster journalism requires composable workflows for creators, editors, and admin
 - `/api/creator` – Creator registration, onboarding, profile updates, password changes.
 - `/api/auth` – JWT issuance with refresh flow.
 - `/api/admin` – Super-admin user creation, published article visibility.
-- `/api/news` – Published article catalog, creator profiles, filtering by city/category.
+- `/api/news` – Published article catalog (newest first) and creator profiles.
+  - `GET /api/news/` filters by `category_id`/`city_id` (UUID) or `category`/`city` (slug, e.g. `local-news`, `nagpur`); the total match count is in the `X-Total-Count` header.
+  - Each article has ordered `categories` and a `primary_category` (the first; used for the public URL `/{category}/{slug}`). Order is stored in `article_categories.position`.
+  - `GET /api/news/sitemap` (slug, primary category, timestamps) and `GET /api/news/authors` (usernames + latest article time) feed the website's sitemaps.
+  - Timestamps are stored as naive IST and serialized with an explicit `+05:30` offset.
 - `/api/media` – Image uploads + metadata (tagged with `media`/`images`).
 - `/api/common` – Shared endpoints (healthchecks, utilities).
 - `/api/insurance` is intentionally hidden and not part of the public schema.
@@ -85,6 +89,7 @@ curl -X POST https://api.example.com/pressgenai/api/creator/onboarding \
 3. Copy `.env.example` to `.env` and fill required vars (`ENV`, `POSTGRES_CNX_STR_LOCAL`, `DEV_DB_CNX_STR`, OpenAI/Serp/AWS/JWT secrets, assistant IDs, WATI tokens, etc.).
 4. `alembic upgrade head`.
 5. `uvicorn src.app:app --reload --host 0.0.0.0 --port 8000`.
+6. Tests: `pip install -r requirements-dev.txt && python -m pytest tests`.
 
 ## Screenshots / Diagrams
 - Architecture is captured in the Mermaid diagram above. (Add UI captures or architecture PNGs in this section if available.)

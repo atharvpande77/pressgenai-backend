@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload, selectinload
@@ -9,7 +9,14 @@ from uuid import UUID
 from src.config.database import get_session, Session
 from src.models import GeneratedUserStories, NewsCategory, UserStories, UserStoryPublishStatus, UserStoryStatus, Users, Authors
 from src.news.dependencies import get_category_dep
-from src.news.schemas import CreatorProfileResponse, ArticleListResponse, ArticleDetailResponse
+from src.news.schemas import (
+    CreatorProfileResponse,
+    ArticleListResponse,
+    ArticleDetailResponse,
+    SitemapArticleResponse,
+    SitemapAuthorResponse,
+)
+from src.news import service as news_service
 from src.aws.utils import get_bucket_base_url
 from src.news.utils import get_category_name
 
@@ -24,59 +31,66 @@ from src.models import Cities, Categories
     '/', 
     response_model=list[ArticleListResponse],
     summary="Get all articles",
-    description="Retrieve a paginated list of all published articles with optional filtering by category or city.",
+    description=(
+        "Retrieve a paginated list of published articles, newest first, optionally filtered by "
+        "category (`category_id` UUID or `category` slug, e.g. `local-news`) and/or city "
+        "(`city_id` UUID or `city` slug, e.g. `nagpur`). The total number of matching articles "
+        "is returned in the `X-Total-Count` header."
+    ),
     responses={
         200: {"description": "List of articles retrieved successfully"},
-        400: {"description": "Invalid category ID or city ID provided"},
+        400: {"description": "Invalid category or city provided"},
     }
 )
 async def get_all_articles(
     session: Annotated[AsyncSession, Depends(get_session)],
+    response: Response,
     category_id: UUID | None = None,
     city_id: UUID | None = None,
+    category: Annotated[str | None, Query(description="Category slug, e.g. local-news")] = None,
+    city: Annotated[str | None, Query(description="City slug, e.g. nagpur")] = None,
     limit: Annotated[int | None, Query(gt=0, le=100)] = 10,
-    offset: int| None = 0
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
-    if city_id and not await session.get(Cities, city_id):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Invalid city ID"
-        )
-        
-    if category_id and not await session.get(Categories, category_id):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Invalid category ID"
-        )
-    
-    query = (
-        select(GeneratedUserStories)
-        .join(UserStories, GeneratedUserStories.user_story_id == UserStories.id)
-        .where(
-            UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,
-            UserStories.status == UserStoryStatus.SUBMITTED,
-        )
-        .options(
-            selectinload(GeneratedUserStories.categories),
-            selectinload(GeneratedUserStories.city),
-            selectinload(GeneratedUserStories.author).selectinload(Authors.user),
-            selectinload(GeneratedUserStories.editor),
-        )
-        .limit(limit)
-        .offset(offset)
-        .order_by(GeneratedUserStories.created_at.desc())
+    resolved_category_id = await news_service.resolve_category_filter(session, category_id, category)
+    resolved_city_id = await news_service.resolve_city_filter(session, city_id, city)
+    articles, total = await news_service.list_published_articles(
+        session,
+        category_id=resolved_category_id,
+        city_id=resolved_city_id,
+        limit=limit,
+        offset=offset,
     )
+    response.headers["X-Total-Count"] = str(total)
+    return articles
 
-    if city_id:
-        query = query.where(GeneratedUserStories.city_id == city_id)
 
-    if category_id:
-        query = query.where(GeneratedUserStories.categories.any(Categories.id == category_id))
-    
-    result = await session.execute(query)
-    article_rows = result.scalars().unique().all()
+@router.get(
+    '/sitemap',
+    response_model=list[SitemapArticleResponse],
+    summary="Published article URLs for sitemaps",
+    description="Lightweight list (slug, primary category, timestamps) of published articles, newest first. Total in `X-Total-Count`.",
+)
+async def get_sitemap_articles(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    response: Response,
+    limit: Annotated[int, Query(gt=0, le=5000)] = 1000,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    rows, total = await news_service.list_sitemap_entries(session, limit=limit, offset=offset)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
-    return article_rows
+
+@router.get(
+    '/authors',
+    response_model=list[SitemapAuthorResponse],
+    summary="Creators with published articles",
+    description="Usernames of active creators with at least one published article and the time of their latest article.",
+)
+async def get_published_authors(session: Annotated[AsyncSession, Depends(get_session)]):
+    rows = await news_service.list_published_authors(session)
+    return [{"username": username, "lastmod": lastmod} for username, lastmod in rows]
 
 
 @router.get(
@@ -185,9 +199,12 @@ async def get_creator_profile(
     )
 
     if sort_by == "newest" or sort_by == "popular":
-        articles_query = articles_query.order_by(GeneratedUserStories.created_at.desc())
+        articles_query = news_service.newest_first(articles_query)
     elif sort_by == "oldest":
-        articles_query = articles_query.order_by(GeneratedUserStories.created_at.asc())
+        articles_query = articles_query.order_by(
+            GeneratedUserStories.published_at.asc().nulls_last(),
+            GeneratedUserStories.created_at.asc(),
+        )
 
     articles_query = articles_query.limit(limit).offset(offset)
 
@@ -202,5 +219,6 @@ async def get_creator_profile(
         "last_name": creator_user.last_name,
         "bio": creator.bio,
         "profile_image_key": creator_user.profile_image_key,
+        "total_count": await news_service.count_published_articles_by_author(session, creator_user.id),
         "articles": articles
     })

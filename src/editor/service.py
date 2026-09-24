@@ -569,11 +569,12 @@ async def store_article_categories(
     if not unique_category_ids:
         return
 
+    # `position` keeps the editor's order; position 0 is the primary category.
     await session.execute(
         insert(ArticleCategories)
             .values([
-                {"article_id": article_id, "category_id": category_id}
-                for category_id in unique_category_ids
+                {"article_id": article_id, "category_id": category_id, "position": position}
+                for position, category_id in enumerate(unique_category_ids)
             ])
             .on_conflict_do_nothing(
                 index_elements=["article_id", "category_id"]
@@ -585,19 +586,18 @@ async def validate_categories(
     session: AsyncSession,
     category_ids: list[UUID]
 ):
-    category_ids = set(category_ids)
+    requested = list(dict.fromkeys(category_ids))
     result = await session.execute(
         select(Categories.id)
-            .where(Categories.id.in_(category_ids))
+            .where(Categories.id.in_(requested))
     )
-    validated_category_ids = result.scalars().all()
-    
-    validated_category_ids_set = set(c_id for c_id in validated_category_ids)
-    invalid = category_ids - validated_category_ids_set
+    validated_category_ids_set = set(result.scalars().all())
+    invalid = set(requested) - validated_category_ids_set
     
     if invalid:
         logger.warning("Invalid category IDs supplied", extra={"event": "categories.validate", "invalid_ids": list(invalid)})
-    return list(validated_category_ids_set)
+    # Preserve the requested order: the first category is the article's primary one.
+    return [category_id for category_id in requested if category_id in validated_category_ids_set]
     
     
 async def get_city_by_id(session: AsyncSession, city_id: UUID):

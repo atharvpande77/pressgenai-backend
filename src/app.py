@@ -45,6 +45,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Lets browser clients read pagination totals from list endpoints.
+    expose_headers=["X-Total-Count"],
 )
 
 # templates = Jinja2Templates(directory="src/templates")
