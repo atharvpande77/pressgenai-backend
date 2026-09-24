@@ -154,10 +154,17 @@ class SitemapArticleResponse(PrimaryCategoryMixin, BaseModel):
     """Minimal article row for sitemaps."""
     model_config = ConfigDict(from_attributes=True)
 
-    slug: str
+    id: UUID = Field(exclude=True)
+    stored_slug: str | None = Field(default=None, validation_alias="slug", exclude=True)
     published_at: ISTDateTime | None = None
     updated_at: ISTDateTime | None = None
     categories: list[CategoriesDB] = Field(default_factory=list, exclude=True)
+
+    @computed_field
+    @property
+    def slug(self) -> str:
+        # A few older articles have no slug; GET /news/{slug_or_id} accepts the id instead.
+        return self.stored_slug or str(self.id)
 
 
 class SitemapAuthorResponse(BaseModel):

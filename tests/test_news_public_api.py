@@ -59,3 +59,11 @@ def test_no_master_password():
     hashed = bcrypt.hashpw(b"correct horse", bcrypt.gensalt()).decode()
     assert verify_pw("correct horse", hashed)
     assert not verify_pw("pass1234", hashed)
+
+
+def test_sitemap_row_without_slug_falls_back_to_id():
+    article_id = uuid4()
+    row = SimpleNamespace(id=article_id, slug=None, published_at=None, updated_at=None, categories=[])
+    body = SitemapArticleResponse.model_validate(row).model_dump(mode="json")
+    assert body["slug"] == str(article_id)
+    assert body["primary_category"] is None
