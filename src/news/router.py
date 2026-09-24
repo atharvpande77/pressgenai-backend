@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, joinedload, selectinload
+from sqlalchemy.orm import Load, aliased, joinedload, selectinload
 from sqlalchemy import select, func, case, literal, or_, and_
 from sqlalchemy.dialects.postgresql import JSONB
 from uuid import UUID
@@ -117,12 +117,7 @@ async def get_article_by_slug_or_id(
     result = await session.execute(
         select(GeneratedUserStories)
         .join(UserStories, GeneratedUserStories.user_story_id == UserStories.id)
-        .options(
-        selectinload(GeneratedUserStories.categories),
-        selectinload(GeneratedUserStories.author).selectinload(Authors.user),
-        selectinload(GeneratedUserStories.editor),
-        selectinload(GeneratedUserStories.city),
-        )
+        .options(*news_service.article_load_options())
         .where(
             or_(*filters),
             UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,
@@ -166,6 +161,8 @@ async def get_creator_profile(
     result = await session.execute(
         select(Users, Authors)
         .join(Authors, Authors.id == Users.id)
+        # Only the two rows themselves; their selectin relationships would load the author's whole history.
+        .options(Load(Users).lazyload("*"), Load(Authors).lazyload("*"))
         .where(
             and_(
                 Users.active == True,
@@ -186,11 +183,7 @@ async def get_creator_profile(
     articles_query = (
         select(GeneratedUserStories)
         .join(UserStories, GeneratedUserStories.user_story_id == UserStories.id)
-        .options(
-            selectinload(GeneratedUserStories.categories),
-            selectinload(GeneratedUserStories.city),
-            selectinload(GeneratedUserStories.editor),
-        )
+        .options(*news_service.article_load_options(author=False))
         .where(
             GeneratedUserStories.author_id == creator_user.id,
             UserStories.publish_status == UserStoryPublishStatus.PUBLISHED,

@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Load, lazyload, selectinload
 
 from src.models import (
     Authors,
@@ -17,6 +17,28 @@ from src.models import (
     UserStoryStatus,
     Users,
 )
+
+
+def article_load_options(*, author: bool = True):
+    """Load exactly what the public schemas read and nothing else.
+
+    Most relationships in src/models.py are lazy="selectin", so loading one
+    article would also load its author's other stories, their questions and
+    answers, its city's other articles, every article of its categories, and so
+    on. For prolific creators that cascade took 30-50 s. `lazyload("*")` stops
+    it; the schemas only touch the relationships loaded explicitly below.
+    """
+    options = [
+        lazyload("*"),
+        selectinload(GeneratedUserStories.categories).lazyload("*"),
+        selectinload(GeneratedUserStories.city).lazyload("*"),
+        selectinload(GeneratedUserStories.editor).lazyload("*"),
+    ]
+    if author:
+        options.append(
+            selectinload(GeneratedUserStories.author).options(lazyload("*"), selectinload(Authors.user).lazyload("*"))
+        )
+    return options
 
 
 def slugify_city_name(name: str) -> str:
@@ -92,17 +114,7 @@ async def list_published_articles(
 
     total = (await session.execute(select(func.count()).select_from(query.subquery()))).scalar_one()
 
-    page_query = (
-        newest_first(query)
-        .options(
-            selectinload(GeneratedUserStories.categories),
-            selectinload(GeneratedUserStories.city),
-            selectinload(GeneratedUserStories.author).selectinload(Authors.user),
-            selectinload(GeneratedUserStories.editor),
-        )
-        .limit(limit)
-        .offset(offset)
-    )
+    page_query = newest_first(query).options(*article_load_options()).limit(limit).offset(offset)
     articles = (await session.execute(page_query)).scalars().unique().all()
     return list(articles), total
 
@@ -119,7 +131,7 @@ async def list_sitemap_entries(session: AsyncSession, *, limit: int, offset: int
     rows = (
         await session.execute(
             newest_first(query)
-            .options(selectinload(GeneratedUserStories.categories))
+            .options(lazyload("*"), selectinload(GeneratedUserStories.categories).lazyload("*"))
             .limit(limit)
             .offset(offset)
         )
