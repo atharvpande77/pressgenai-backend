@@ -95,12 +95,13 @@ curl -X POST https://api.example.com/pressgenai/api/creator/onboarding \
 `docker compose up --build` starts three services in order:
 1. `db` — `postgis/postgis:17-3.6-alpine` (PG 17 / PostGIS 3.6), data in the `pgdata` volume. On first init, `docker/postgres/initdb/` creates the `postgis` and `uuid-ossp` extensions.
 2. `migrate` — runs `alembic upgrade head` once `db` is healthy, then exits. Runs on every `up`; a no-op when already at head.
-3. `api` — starts only after `migrate` exits 0. Published on `127.0.0.1:8000` (loopback only; the reverse proxy sits in front).
+3. `api` — starts only after `migrate` exits 0. Published on `127.0.0.1:${API_PORT}` (default 8000; loopback only, the reverse proxy sits in front).
 
 Everything reads the single `.env`. Besides the app settings it needs:
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — container credentials. Compose builds the in-network `POSTGRES_CNX_STR_LOCAL` (`...@db:5432/...`) from them, overriding the host-oriented value in `.env`. Keep the password URL-safe. `ENV` must not be `dev`.
 - `WEB_CONCURRENCY` — uvicorn workers (default 2). Each worker can hold up to 15 DB connections; keep `workers x 15` well under Postgres `max_connections` (50).
 - `COMPOSE_FILE=docker-compose.yml` — **prod only**, so `docker compose up` skips the local override.
+- `API_PORT` — host port the api is published on (default `8000`). Set it on prod when 8000 is taken by another app, and point the reverse proxy at it. The container itself always listens on 8000.
 
 The prod VPS (6 vCPU / 12 GB) is shared with other apps, so the stack is capped at ~2.8 GB: memory limits of `db` 2g, `api` 768m, `migrate` 512m (runs briefly), and conservative Postgres settings (`shared_buffers=1GB`, `max_connections=50`). A container that exceeds its limit gets OOM-killed and restarted; check `docker compose ps` / `docker stats` if that happens.
 

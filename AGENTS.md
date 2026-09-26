@@ -23,7 +23,7 @@
 - `alembic upgrade head` after schema changes.
 - `alembic revision --autogenerate -m "description"` to capture migrations.
 - `python -m pytest tests` — unit tests (install `requirements-dev.txt`).
-- `docker compose up --build` — full stack: `db` (PostGIS 17-3.6) → `migrate` (`alembic upgrade head`, automatic) → `api` on `127.0.0.1:8000`. `docker-compose.override.yml` is local-only (reload, DB on `127.0.0.1:55432`); prod sets `COMPOSE_FILE=docker-compose.yml` in `.env`. Compose keys in `.env`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `WEB_CONCURRENCY`, `COMPOSE_FILE`. See README "Docker".
+- `docker compose up --build` — full stack: `db` (PostGIS 17-3.6) → `migrate` (`alembic upgrade head`, automatic) → `api` on `127.0.0.1:${API_PORT:-8000}`. `docker-compose.override.yml` is local-only (reload, DB on `127.0.0.1:55432`); prod sets `COMPOSE_FILE=docker-compose.yml` in `.env`. Compose keys in `.env`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `WEB_CONCURRENCY`, `API_PORT`, `COMPOSE_FILE`. See README "Docker".
 
 ## Development Practices
 - Keep routers focused on wiring dependencies, schemas, and responses. Push business logic (queries, validations, updates) into `service.py`.
