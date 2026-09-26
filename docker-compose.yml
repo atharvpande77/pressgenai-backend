@@ -1,0 +1,112 @@
+# Production-shaped stack. Locally, docker-compose.override.yml is merged in
+# automatically; on prod set COMPOSE_FILE=docker-compose.yml in .env to skip it.
+#
+#   docker compose up -d --build
+#
+# Startup order: db (healthy) -> migrate (alembic upgrade head, exits 0) -> api
+
+x-app: &app
+  build: .
+  image: pressgenai-api
+  env_file: .env
+  environment:
+    # Containers always reach Postgres by service name. This overrides the
+    # host-oriented value in .env; ENV must not be 'dev' (see src/config/database.py).
+    POSTGRES_CNX_STR_LOCAL: postgresql+asyncpg://${POSTGRES_USER:?set in .env}:${POSTGRES_PASSWORD:?set in .env}@db:5432/${POSTGRES_DB:?set in .env}
+
+services:
+  db:
+    # PostGIS 3.6 on PG 17 is only published as an alpine image (matches prod 17.6 / 3.6).
+    image: postgis/postgis:17-3.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # musl has no real locale support; use ICU so text sorts linguistically
+      # (like a glibc en_US cluster) instead of by byte. Applies at first init only.
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=en-US
+    # Conservative: the prod VPS (6 vCPU / 12 GB) is shared with other applications.
+    # Connection budget: WEB_CONCURRENCY x 15 (SQLAlchemy pool 5 + overflow 10) < max_connections.
+    command:
+      - postgres
+      - -c
+      - max_connections=50
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - max_worker_processes=4
+      - -c
+      - max_parallel_workers=2
+      - -c
+      - max_parallel_workers_per_gather=1
+    # Docker's 64 MB default /dev/shm breaks parallel queries.
+    shm_size: 256m
+    # Memory budget (12 GB shared host, low-traffic app): db 2g + api 768m + migrate 512m (transient).
+    # db: shared_buffers 1GB + ~30 backends (~10MB each, work_mem 8MB) + maintenance_work_mem 256MB.
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP (-h) on purpose: during initdb the temporary server only listens on
+      # the unix socket, so this stays unhealthy until init/restore finishes.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5m
+      start_interval: 2s
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    restart: unless-stopped
+    # ~250 MiB measured with 2 workers; headroom for uploads and OpenAI responses.
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # Loopback only: Docker-published ports bypass firewalld. Apache proxies to this.
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  pgdata:

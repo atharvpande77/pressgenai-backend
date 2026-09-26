@@ -1,0 +1,25 @@
+# Local development overrides, merged automatically by `docker compose up`.
+# Prod must not load this file: set COMPOSE_FILE=docker-compose.yml in the prod .env.
+
+services:
+  db:
+    # Stock Postgres settings; the prod tuning in docker-compose.yml assumes 12 GB RAM.
+    command: ["postgres"]
+    # Matches POSTGRES_CNX_STR_LOCAL in .env, so host tools / host-run uvicorn work too.
+    ports:
+      - "127.0.0.1:55432:5432"
+
+  migrate:
+    # Pick up new revisions and model changes without rebuilding.
+    volumes:
+      - ./alembic:/app/alembic
+      - ./src:/app/src
+
+  api:
+    command: ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      # uvicorn reads this natively; --reload is single-process.
+      WEB_CONCURRENCY: "1"
+    volumes:
+      - ./alembic:/app/alembic
+      - ./src:/app/src
