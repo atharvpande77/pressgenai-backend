@@ -1,4 +1,5 @@
 from src.models import UserStories, UserStoryStatus, GeneratedUserStories, UserStoryPublishStatus, Users, UserRoles, Authors, EditorCategories, EditorCities, ArticleCategories, Categories, Cities
+from sqlalchemy.orm import lazyload
 from src.editor.schemas import EditArticleSchema, ArticleItem
 from src.utils.query import get_article_images_json_query, get_profile_image_expression, get_creator_profile_image
 from src.creators.utils import hash_password
@@ -174,6 +175,7 @@ async def get_editor_profile_info(
         select(Categories)
             .join(EditorCategories, EditorCategories.category_id == Categories.id)
             .where(EditorCategories.editor_id == editor_id)
+            .options(lazyload("*"))  # don't cascade into every article of each category
     )
     categories = categories_query.scalars().all()
 
@@ -181,6 +183,7 @@ async def get_editor_profile_info(
         select(Cities)
             .join(EditorCities, EditorCities.city_id == Cities.id)
             .where(EditorCities.editor_id == editor_id)
+            .options(lazyload("*"))  # don't cascade into every article/author of each city
     )
     cities = cities_query.scalars().all()
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from sqlalchemy import select
+from sqlalchemy.orm import lazyload
 
 from src.config.database import Session
 from src.models import Categories, Cities
@@ -24,9 +25,12 @@ async def get_all_categories(
     session: Session,
     limit: int = 20
 ):
+    # lazyload("*"): Categories.articles is lazy="selectin", so without it every
+    # call also loaded every article (and their stories, authors, ...).
     result = await session.execute(
         select(Categories)
             .where(Categories.active == True)
+            .options(lazyload("*"))
             .limit(limit)
     )
     return result.scalars().all()
@@ -49,9 +53,11 @@ async def get_all_cities(
     session: Session,
     limit: int = 20
 ):
+    # lazyload("*"): Cities.authors / generated_user_stories are lazy="selectin".
     result = await session.execute(
         select(Cities)
             .where(Cities.active == True)
+            .options(lazyload("*"))
             .limit(limit)
     )
     return result.scalars().all()

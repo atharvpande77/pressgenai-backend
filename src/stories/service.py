@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import lazyload
 from sqlalchemy import and_, or_, update, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DatabaseError, IntegrityError
@@ -768,6 +769,7 @@ async def _get_general_category_id(session: AsyncSession, general_category_value
     result = await session.execute(
         select(Categories)
             .where(Categories.value == general_category_value)
+            .options(lazyload("*"))  # only id/name/value are read
     )
     general = result.scalars().first()
     return {"id": general.id, "name": general.name, "value": general.value}
@@ -792,6 +794,7 @@ async def get_category_ids(session: AsyncSession, categories: list[str]) -> list
     result = await session.execute(
         select(Categories)
             .where(Categories.value.in_(normalized_categories))
+            .options(lazyload("*"))  # only id/name/value are read
     )
             
     by_value = {category.value: category for category in result.scalars().all()}
