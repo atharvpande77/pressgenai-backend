@@ -106,7 +106,7 @@ class UpdateCreatorPassword(BaseModel):
 class CreatorItem(BaseModel):
     id: UUID
     first_name: str
-    last_name: str
+    last_name: str | None = None
     email: str
     bio: str | None = None
     username: str | None = None
