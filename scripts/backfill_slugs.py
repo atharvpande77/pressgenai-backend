@@ -8,7 +8,8 @@ Backfill English slugs for articles whose slug is missing or not plain ASCII.
 Groups:
     A  slug IS NULL                                  -> written with --apply
     B  non-ASCII slug, article not published         -> written with --apply
-    C  non-ASCII slug, article published             -> reported only (changing it breaks live URLs)
+    C  non-ASCII slug, article published             -> reported only, unless --include-published
+                                                       (changing it breaks the article's live URL)
 
 The new slug is built from an English title (`ensure_english_title`), exactly like new articles.
 Rows with no title or no obtainable English title are skipped and left unchanged, so re-running is safe.
@@ -59,7 +60,7 @@ def group_of(row) -> str:
     return "C" if row.publish_status == UserStoryPublishStatus.PUBLISHED.value else "B"
 
 
-async def main(apply: bool, limit: int | None, out_dir: Path):
+async def main(apply: bool, limit: int | None, out_dir: Path, include_published: bool = False):
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     changes, skipped = [], []
@@ -70,9 +71,9 @@ async def main(apply: bool, limit: int | None, out_dir: Path):
         for row in rows:
             groups[group_of(row)].append(row)
         print(f"A (no slug): {len(groups['A'])} | B (non-ASCII, unpublished): {len(groups['B'])} | "
-              f"C (non-ASCII, published, NOT touched): {len(groups['C'])}")
+              f"C (non-ASCII, published, {'INCLUDED' if include_published else 'NOT touched'}): {len(groups['C'])}")
 
-        todo = groups["A"] + groups["B"]
+        todo = groups["A"] + groups["B"] + (groups["C"] if include_published else [])
         if limit:
             todo = todo[:limit]
 
@@ -125,7 +126,10 @@ if __name__ == "__main__":
     mode.add_argument("--dry-run", action="store_true", help="show what would change (default)")
     mode.add_argument("--apply", action="store_true", help="write the new slugs")
     parser.add_argument("--limit", type=int, default=None, help="only process the first N rows of groups A+B")
+    parser.add_argument("--include-published", action="store_true",
+                        help="also rewrite non-ASCII slugs of published articles (their old URLs stop working)")
     parser.add_argument("--out", type=Path, default=Path("."), help="directory for the CSV reports")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main(apply=args.apply, limit=args.limit, out_dir=args.out))
+    asyncio.run(main(apply=args.apply, limit=args.limit, out_dir=args.out,
+                     include_published=args.include_published))
