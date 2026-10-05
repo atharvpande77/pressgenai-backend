@@ -16,7 +16,7 @@ from uuid import UUID
 from src.models import Locations, StoriesRaw, UserStories, UserStoriesQuestions, UserStoriesAnswers, UserStoryStatus, UserStoryPublishStatus, GeneratedUserStories, Users, Categories
 from src.config.database import get_session
 from src.schemas import LocationDataSchema, AnswerSchema, CreateStorySchema, UserStoryFullResponseSchema, EditGeneratedArticleSchema, CreateAIStoryResponse, CreateManualStoryResponse, GeneratedStoryResponseSchema
-from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify, generate_manual_story_metadata
+from src.stories.utils import SCOPE_CONFIG, generate_hash, get_word_length_range, generate_ai_questions,generate_user_story, sluggify, generate_manual_story_metadata, ensure_english_title
 from src.auth.dependencies import role_checker
 from src.aws.utils import get_full_s3_object_url, get_images_with_urls
 from src.utils.query import get_article_images_json_query, get_profile_image_expression
@@ -744,15 +744,16 @@ import secrets
 
 async def generate_unique_slug(session: AsyncSession, title: str, max_attempts: int = 5, transliterate: bool = False):
     title_slug = sluggify(title, max_words=10, transliterate=transliterate)
-    slug = title_slug
-    for _ in range(max_attempts):
-        suffix = secrets.token_hex(3)
-        slug = f"{title_slug}-{suffix}"
-        existing = await session.execute(
-            select(GeneratedUserStories).where(GeneratedUserStories.slug == slug)
-        )
-        if not existing.scalar_one_or_none():
-            return slug
+    # Retry with a longer suffix if every short one collides, so a slug is always returned.
+    for suffix_bytes in (3, 6):
+        for _ in range(max_attempts):
+            slug = f"{title_slug}-{secrets.token_hex(suffix_bytes)}"
+            existing = await session.execute(
+                select(GeneratedUserStories).where(GeneratedUserStories.slug == slug)
+            )
+            if not existing.scalar_one_or_none():
+                return slug
+    raise RuntimeError(f"Could not generate a unique slug for {title_slug!r}")
 
 
 
@@ -859,12 +860,10 @@ async def store_generated_article(session: AsyncSession, generated: dict, user_s
     # print(f"Regenerated article for user story {user_story_id}: \n{generated}")
     
     title = generated.get('title')
-    english_slug_title = generated.get('english_title') 
-    # print(generated)
-    # Use english_slug_title for slug if available and article is not in English
-    title_for_slug = english_slug_title if english_slug_title else title
+    # The slug is always built from an English title (translated if the article isn't English).
+    english_slug_title = await ensure_english_title(title, generated.get('english_title'))
     title_hash = generate_hash(title)
-    slug = await generate_unique_slug(session, title_for_slug)
+    slug = await generate_unique_slug(session, english_slug_title)
     
     full_text = generated.get('full_text')
     
