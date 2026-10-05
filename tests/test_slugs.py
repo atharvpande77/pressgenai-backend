@@ -58,3 +58,12 @@ def test_unique_slug_raises_instead_of_returning_none():
     session.execute = AsyncMock(return_value=found)
     with pytest.raises(RuntimeError):
         run(service.generate_unique_slug(session, "Road repair"))
+
+
+def test_backfill_group_classification():
+    from types import SimpleNamespace
+    from scripts.backfill_slugs import group_of
+
+    assert group_of(SimpleNamespace(slug=None, publish_status="published")) == "A"
+    assert group_of(SimpleNamespace(slug="नागपुर-abc", publish_status="pending")) == "B"
+    assert group_of(SimpleNamespace(slug="नागपुर-abc", publish_status="published")) == "C"
