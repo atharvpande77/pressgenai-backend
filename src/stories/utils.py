@@ -525,7 +525,7 @@ async def generate_user_story(user_story: UserStories, qna: list[dict]) -> dict:
 
         {{
         "title": "If 'Optional Title' above is empty, generate a suitable title here. Otherwise, return an empty string.",
-        "english_title": "If the article is not in English, provide an exact translation (not summarization) of the original title into English, keeping it under 12 words. If the article is in English, leave this empty.",
+        "english_title": "REQUIRED if the article is not in English: an exact translation (not summarization) of the title (the 'Optional Title' if provided, otherwise the title you generate) into English, under 12 words, written only in English (Latin letters), never in the article's language. If the article is in English, leave this empty.",
         "snippet": "A 2–3 sentence HTML formatted summary (use <p>, <b>, <br> where appropriate)",
         "full_text": "The complete article text in HTML format with proper paragraphing, headings (<h2>, <h3>) if needed, and emphasis tags where useful.",
         "category": ["A list of 1–3 categories from this fixed list: [local-news, india, world, politics, sports, entertainment, crime, business, civic-issues, technology, environment, culture, general]. Should always be a list even if there is only one category. Only include multiple categories if they truly fit the article. If none apply, use 'general'."],
@@ -613,7 +613,7 @@ async def generate_manual_story_metadata(full_text: str, title: str | None = Non
             OTHERWISE return the user’s title EXACTLY UNCHANGED.
             
             4. Generate an english title
-            - If the article is not in English, provide an exact translation (not summarization) of the original title/ generated title (if) into English, keeping it under 12 words. If the article is in English, leave this empty.
+            - REQUIRED if the article is not in English: provide an exact translation (not summarization) of the final title (the original title, or the generated one if you replaced it) into English, under 12 words, written only in English (Latin letters), never in the article's language. If the article is in English, leave this empty.
 
             5. Generate a short snippet (summary) not exceeding 400 characters, ONLY IF: Either the user provided no snippet, OR
             If snippet length < 30 characters OR snippet is copied verbatim from title OR snippet language ≠ body language (in that case, detect the primary language of the body and generate the title in the same language as the body) OR the snippet is irrelevant, inaccurate, or does not reflect the article content.
@@ -663,6 +663,48 @@ async def generate_manual_story_metadata(full_text: str, title: str | None = Non
         return json.loads(raw_content)
     except Exception:
         logger.exception("Error generating manual story metadata", extra={"event": "story.metadata"})
+
+SLUG_RE = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
+
+
+def is_valid_ascii_slug(slug: str) -> bool:
+    return bool(slug and SLUG_RE.fullmatch(slug))
+
+
+async def translate_title_to_english(title: str) -> str | None:
+    """Exact English translation of an article headline (under 12 words), or None on failure."""
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You translate news headlines into English. Reply with the English headline only: no quotes, no explanation."},
+                {"role": "user", "content": f"Translate this headline exactly (do not summarize) into English, under 12 words, using only English letters:\n{title}"},
+            ],
+            temperature=0,
+        )
+        return (response.choices[0].message.content or "").strip().strip('"\'') or None
+    except Exception:
+        logger.exception("Error translating title to English", extra={"event": "story.translate_title"})
+        return None
+
+
+async def ensure_english_title(title: str, english_title: str | None) -> str:
+    """
+    Returns an English title whose slug is valid ASCII. English titles are used as-is; for other
+    languages the generated `english_title` is used, falling back to a dedicated translation call.
+    Raises ValueError if no English title can be obtained.
+    """
+    for candidate in (english_title, title):
+        if candidate and candidate.strip() and is_valid_ascii_slug(sluggify(candidate, max_words=10)):
+            return candidate.strip()
+
+    for _ in range(2):
+        translated = await translate_title_to_english(title)
+        if translated and is_valid_ascii_slug(sluggify(translated, max_words=10)):
+            return translated
+
+    raise ValueError("Could not obtain an English title for the slug")
+
 
 def get_word_length_range(length_option: str):
     LENGTH_RANGES = {
